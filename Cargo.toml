@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 regex = "1.10.4"
-rquickjs = "0.6.0"
+rquickjs = {version = "0.6.0", features=["futures"]}
 tokio = {version = "1.37.0", features=["net", "macros", "rt-multi-thread", "io-std", "io-util"]}
-tokio-curl = "0.1.11"
+reqwest = "0.12.4"
+lazy-regex = "3.1.0"

@@ -2,8 +2,8 @@ mod consts;
 mod jobs;
 
 use consts::DEFAULT_SOCK_PATH;
-use jobs::{process_decrypt_n_signature, process_fetch_update, JobOpcode};
-use std::env::args;
+use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
+use std::{env::args, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, BufReader},
     net::{UnixListener, UnixStream},
@@ -29,18 +29,22 @@ async fn main() {
         None => DEFAULT_SOCK_PATH,
     };
 
+    // have to please rust
+    let state: Arc<GlobalState> = Arc::new(GlobalState::new());
+
     let socket = UnixListener::bind(socket_url).unwrap();
 
     loop {
         let (socket, _addr) = socket.accept().await.unwrap();
 
-        tokio::spawn(async move {
-            process_socket(socket).await;
+        let cloned_state = state.clone();
+        tokio::spawn(async {
+            process_socket(cloned_state, socket).await;
         });
     }
 }
 
-async fn process_socket(socket: UnixStream) {
+async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
     let mut bufreader = BufReader::new(socket);
 
     loop {
@@ -49,8 +53,9 @@ async fn process_socket(socket: UnixStream) {
 
         match opcode {
             JobOpcode::ForceUpdate => {
-                tokio::spawn(async move {
-                    process_fetch_update().await;
+                let cloned_state = state.clone();
+                tokio::spawn(async {
+                    process_fetch_update(cloned_state).await;
                 });
             }
             JobOpcode::DecryptNSignature => {
@@ -59,10 +64,10 @@ async fn process_socket(socket: UnixStream) {
 
                 break_fail!(bufreader.read_exact(&mut buf).await);
 
-                let _str = break_fail!(String::from_utf8(buf));
-
-                tokio::spawn(async move {
-                    process_decrypt_n_signature(_str).await;
+                let str = break_fail!(String::from_utf8(buf));
+                let cloned_state = state.clone();
+                tokio::spawn(async {
+                    process_decrypt_n_signature(cloned_state, str).await;
                 });
             }
             _ => {}
