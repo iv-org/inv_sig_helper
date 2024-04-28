@@ -1,1 +1,1 @@
-pub static DEFAULT_SOCK_PATH: String = "/tmp/inv_sig_helper.sock";
+pub static DEFAULT_SOCK_PATH: &str = "/tmp/inv_sig_helper.sock";
