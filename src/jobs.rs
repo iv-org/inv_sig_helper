@@ -13,3 +13,5 @@ impl From<u8> for JobOpcode {
         }
     }
 }
+
+pub async fn process_decrypt_n_signature(sig: String) {}
