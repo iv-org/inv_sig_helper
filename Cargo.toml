@@ -1,0 +1,11 @@
+[package]
+name = "inv_sig_helper_rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+regex = "1.10.4"
+rquickjs = "0.6.0"
+tokio = {version = "1.37.0", features=["net", "macros", "rt-multi-thread", "io-std", "io-util"]}
