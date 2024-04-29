@@ -5,7 +5,7 @@ use consts::DEFAULT_SOCK_PATH;
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
 use std::{env::args, sync::Arc};
 use tokio::{
-    io::{AsyncReadExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
     net::{UnixListener, UnixStream},
 };
 
@@ -46,6 +46,7 @@ async fn main() {
 
 async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
     let mut bufreader = BufReader::new(socket);
+    bufreader.fill_buf().await;
 
     loop {
         let opcode_byte: u8 = break_fail!(bufreader.read_u8().await);

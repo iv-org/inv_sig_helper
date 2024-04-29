@@ -8,5 +8,3 @@ pub static REGEX_PLAYER_ID: &Lazy<Regex> = regex!("\\/s\\/player\\/([0-9a-f]{8})
 pub static NSIG_FUNCTION_ARRAY: &Lazy<Regex> = regex!(
     "\\.get\\(\"n\"\\)\\)&&\\([a-zA-Z0-9$_]=([a-zA-Z0-9$_]+)(?:\\[(\\d+)])?\\([a-zA-Z0-9$_]\\)"
 );
-pub static NSIG_FUNCTION_BODY: &Lazy<Regex> =
-    regex!("=\\s*function([\\S\\s]*?\\}\\s*return [\\w$]+?\\.join\\(\"\"\\)\\s*\\};)");
