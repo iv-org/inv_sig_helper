@@ -1,7 +1,10 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use regex::Regex;
+use rquickjs::{AsyncContext, AsyncRuntime};
+use std::{num::NonZeroUsize, ops::Deref, sync::Arc, thread::available_parallelism};
+use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
+use tub::Pool;
 
-use crate::consts::{REGEX_PLAYER_ID, TEST_YOUTUBE_VIDEO};
+use crate::consts::{NSIG_FUNCTION_ARRAY, REGEX_PLAYER_ID, TEST_YOUTUBE_VIDEO};
 
 pub enum JobOpcode {
     ForceUpdate,
@@ -20,21 +23,89 @@ impl From<u8> for JobOpcode {
 }
 
 pub struct PlayerInfo {
-    nsig_function_bytecode: Vec<u8>,
+    nsig_function_code: Vec<u8>,
     player_id: u32,
 }
+
+pub struct JavascriptInterpreter {
+    js_runtime: AsyncRuntimeWrapper,
+    nsig_context: AsyncContextWrapper,
+    nsig_function_name: String,
+    player_id: u32,
+}
+
+// This is to get Rust to shut up, since the types are aliases for non-null pointers
+struct AsyncRuntimeWrapper(AsyncRuntime);
+struct AsyncContextWrapper(AsyncContext);
+
+unsafe impl Send for AsyncRuntimeWrapper {}
+unsafe impl Send for AsyncContextWrapper {}
+unsafe impl Sync for AsyncRuntimeWrapper {}
+unsafe impl Sync for AsyncContextWrapper {}
+impl Deref for AsyncRuntimeWrapper {
+    type Target = AsyncRuntime;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for AsyncContextWrapper {
+    type Target = AsyncContext;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl JavascriptInterpreter {
+    pub fn new() -> JavascriptInterpreter {
+        let js_runtime = AsyncRuntime::new().unwrap();
+        // not ideal, but this is only done at startup
+        let nsig_context = block_in_place(|| {
+            Handle::current()
+                .block_on(AsyncContext::full(&js_runtime))
+                .unwrap()
+        });
+        JavascriptInterpreter {
+            js_runtime: AsyncRuntimeWrapper(js_runtime),
+            nsig_context: AsyncContextWrapper(nsig_context),
+            nsig_function_name: Default::default(),
+            player_id: 0,
+        }
+    }
+}
+
 pub struct GlobalState {
     player_info: Mutex<PlayerInfo>,
+    js_runtime_pool: Mutex<Pool<Arc<JavascriptInterpreter>>>,
+    all_runtimes: Mutex<Vec<Arc<JavascriptInterpreter>>>,
 }
 
 impl GlobalState {
     pub fn new() -> GlobalState {
-        return GlobalState {
+        let number_of_runtimes = available_parallelism()
+            .unwrap_or(NonZeroUsize::new(1).unwrap())
+            .get();
+        let mut runtime_vector: Vec<Arc<JavascriptInterpreter>> =
+            Vec::with_capacity(number_of_runtimes);
+        runtime_vector
+            .iter_mut()
+            .for_each(|a| *a = Arc::new(JavascriptInterpreter::new()));
+
+        // Make a clone of the vector, this will clone all the values inside (Arc)
+        let mut runtime_vector2: Vec<Arc<JavascriptInterpreter>> =
+            Vec::with_capacity(number_of_runtimes);
+        runtime_vector2.clone_from(&runtime_vector);
+        let runtime_pool: Pool<Arc<JavascriptInterpreter>> = Pool::from_vec(runtime_vector2);
+        GlobalState {
             player_info: Mutex::new(PlayerInfo {
-                nsig_function_bytecode: Default::default(),
+                nsig_function_code: Default::default(),
                 player_id: Default::default(),
             }),
-        };
+            js_runtime_pool: Mutex::new(runtime_pool),
+            all_runtimes: Mutex::new(runtime_vector),
+        }
     }
 }
 pub async fn process_fetch_update(state: Arc<GlobalState>) {
@@ -47,7 +118,7 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
         }
     };
 
-    let player_id_str = match REGEX_PLAYER_ID.captures(&response).unwrap().get(0) {
+    let player_id_str = match REGEX_PLAYER_ID.captures(&response).unwrap().get(1) {
         Some(result) => result.as_str(),
         None => return,
     };
@@ -56,6 +127,7 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
 
     let current_player_info = global_state.player_info.lock().await;
     let current_player_id = current_player_info.player_id;
+    // release the mutex for other tasks
     drop(current_player_info);
 
     if player_id == current_player_id {
@@ -75,5 +147,22 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
             return;
         }
     };
+
+    let nsig_function_array = NSIG_FUNCTION_ARRAY.captures(&player_javascript).unwrap();
+    let nsig_array_name = nsig_function_array.get(1).unwrap().as_str();
+    let nsig_array_value = usize::from_str_radix(nsig_function_array.get(2).unwrap().as_str(), 10);
+
+    let mut nsig_array_context_regex: String = String::new();
+    nsig_array_context_regex += "var ";
+    nsig_array_context_regex += nsig_array_name;
+    nsig_array_context_regex += "\\s*=\\s*\\[(.+?)][;,]";
+
+    let nsig_array_context = match Regex::new(&nsig_array_context_regex) {
+        Ok(x) => x,
+        Err(x) => {
+            println!("Error: nsig regex compilation failed: {}", x);
+            return;
+        }
+    };
 }
-pub async fn process_decrypt_n_signature(state: Arc<GlobalState>, sig: String) {}
+pub async fn process_decrypt_n_signature(_state: Arc<GlobalState>, _sig: String) {}
