@@ -3,10 +3,14 @@ mod jobs;
 
 use consts::DEFAULT_SOCK_PATH;
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
-use std::{env::args, sync::Arc};
+use std::{env::args, io::Error, sync::Arc};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
-    net::{UnixListener, UnixStream},
+    io::{self, AsyncReadExt, BufReader, BufStream, BufWriter},
+    net::{
+        unix::{ReadHalf, WriteHalf},
+        UnixListener, UnixStream,
+    },
+    sync::Mutex,
 };
 
 macro_rules! break_fail {
@@ -14,6 +18,22 @@ macro_rules! break_fail {
         match $res {
             Ok(value) => value,
             Err(e) => {
+                println!("An error occurred while parsing the current request: {}", e);
+                break;
+            }
+        }
+    };
+}
+
+macro_rules! eof_fail {
+    ($res:expr, $stream:ident) => {
+        match $res {
+            Ok(value) => value,
+            Err(e) => {
+                if (e.kind() == io::ErrorKind::UnexpectedEof) {
+                    $stream.get_ref().readable().await?;
+                    continue;
+                }
                 println!("An error occurred while parsing the current request: {}", e);
                 break;
             }
@@ -44,35 +64,51 @@ async fn main() {
     }
 }
 
-async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
-    let mut bufreader = BufReader::new(socket);
-    bufreader.fill_buf().await;
+async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) -> Result<(), Error> {
+    let (rd, wr) = socket.into_split();
+
+    let wrapped_readstream = Arc::new(Mutex::new(BufReader::new(rd)));
+    let wrapped_writestream = Arc::new(Mutex::new(BufWriter::new(wr)));
+
+    let cloned_readstream = wrapped_readstream.clone();
+    let mut inside_readstream = cloned_readstream.lock().await;
 
     loop {
-        let opcode_byte: u8 = break_fail!(bufreader.read_u8().await);
+        inside_readstream.get_ref().readable().await?;
+
+        let cloned_writestream = wrapped_writestream.clone();
+
+        let opcode_byte: u8 = eof_fail!(inside_readstream.read_u8().await, inside_readstream);
         let opcode: JobOpcode = opcode_byte.into();
+        let request_id: u32 = eof_fail!(inside_readstream.read_u32().await, inside_readstream);
 
         println!("Received job: {}", opcode);
         match opcode {
             JobOpcode::ForceUpdate => {
                 let cloned_state = state.clone();
-                tokio::spawn(async {
+                tokio::spawn(async move {
                     process_fetch_update(cloned_state).await;
                 });
             }
             JobOpcode::DecryptNSignature => {
-                let sig_size: usize = usize::from(break_fail!(bufreader.read_u16().await));
+                let sig_size: usize = usize::from(eof_fail!(
+                    inside_readstream.read_u16().await,
+                    inside_readstream
+                ));
                 let mut buf = vec![0u8; sig_size];
 
-                break_fail!(bufreader.read_exact(&mut buf).await);
+                break_fail!(inside_readstream.read_exact(&mut buf).await);
 
                 let str = break_fail!(String::from_utf8(buf));
                 let cloned_state = state.clone();
-                tokio::spawn(async {
-                    process_decrypt_n_signature(cloned_state, str).await;
+                let cloned_stream = cloned_writestream.clone();
+                tokio::spawn(async move {
+                    process_decrypt_n_signature(cloned_state, str, cloned_stream, request_id).await;
                 });
             }
             _ => {}
         }
     }
+
+    Ok(())
 }

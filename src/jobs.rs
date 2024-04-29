@@ -1,7 +1,13 @@
 use regex::Regex;
 use rquickjs::{async_with, AsyncContext, AsyncRuntime, Exception, FromJs, IntoJs};
-use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism};
-use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
+use std::{num::NonZeroUsize, pin::Pin, sync::Arc, thread::available_parallelism};
+use tokio::{
+    io::{AsyncWrite, AsyncWriteExt, BufWriter},
+    net::{unix::WriteHalf, UnixStream},
+    runtime::Handle,
+    sync::Mutex,
+    task::block_in_place,
+};
 use tub::Pool;
 
 use crate::consts::{NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_NAME, REGEX_PLAYER_ID, TEST_YOUTUBE_VIDEO};
@@ -186,7 +192,14 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
     println!("Successfully updated the player")
 }
 
-pub async fn process_decrypt_n_signature(state: Arc<GlobalState>, sig: String) {
+pub async fn process_decrypt_n_signature<W>(
+    state: Arc<GlobalState>,
+    sig: String,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: tokio::io::AsyncWrite + Unpin + Send,
+{
     let global_state = state.clone();
 
     println!("Signature to be decrypted: {}", sig);
@@ -230,7 +243,17 @@ pub async fn process_decrypt_n_signature(state: Arc<GlobalState>, sig: String) {
                 return;
             }
         };
+
+        let cloned_writer = stream.clone();
+        let mut writer = cloned_writer.lock().await;
+
+        writer.write_u32(request_id).await;
+        writer.write_u16(u16::try_from(decrypted_string.len()).unwrap()).await;
+        writer.write_all(decrypted_string.as_bytes()).await;
+
+        writer.flush().await;
         println!("Decrypted signature: {}", decrypted_string);
+
     })
     .await;
 }
