@@ -15,6 +15,8 @@ use crate::consts::{NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_NAME, REGEX_PLAYER_ID, TE
 pub enum JobOpcode {
     ForceUpdate,
     DecryptNSignature,
+    DecryptSignature,
+    GetSignatureTimestamp,
     UnknownOpcode,
 }
 
@@ -23,6 +25,8 @@ impl std::fmt::Display for JobOpcode {
         match self {
             Self::ForceUpdate => write!(f, "ForceUpdate"),
             Self::DecryptNSignature => write!(f, "DecryptNSignature"),
+            Self::DecryptSignature => write!(f, "DecryptSignature"),
+            Self::GetSignatureTimestamp => write!(f, "GetSignatureTimestamp"),
             Self::UnknownOpcode => write!(f, "UnknownOpcode"),
         }
     }
@@ -32,9 +36,8 @@ impl From<u8> for JobOpcode {
         match value {
             0x00 => Self::ForceUpdate,
             0x01 => Self::DecryptNSignature,
-
-            // make debugging easier
-            b'a' => Self::ForceUpdate,
+            0x02 => Self::DecryptSignature,
+            0x03 => Self::GetSignatureTimestamp,
             _ => Self::UnknownOpcode,
         }
     }
@@ -94,19 +97,40 @@ impl GlobalState {
         }
     }
 }
-pub async fn process_fetch_update(state: Arc<GlobalState>) {
+
+macro_rules! write_failure {
+    ($s:ident, $r:ident) => {
+        $s.write_u32($r).await;
+        $s.write_u16(0x0000).await;
+    };
+}
+
+pub async fn process_fetch_update<W>(
+    state: Arc<GlobalState>,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: tokio::io::AsyncWrite + Unpin + Send,
+{
+    let cloned_writer = stream.clone();
+    let mut writer = cloned_writer.lock().await;
+
     let global_state = state.clone();
     let response = match reqwest::get(TEST_YOUTUBE_VIDEO).await {
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
             println!("Could not fetch the test video: {}", x);
+            write_failure!(writer, request_id);
             return;
         }
     };
 
     let player_id_str = match REGEX_PLAYER_ID.captures(&response).unwrap().get(1) {
         Some(result) => result.as_str(),
-        None => return,
+        None => {
+            write_failure!(writer, request_id);
+            return;
+        }
     };
 
     let player_id: u32 = u32::from_str_radix(player_id_str, 16).unwrap();
@@ -118,6 +142,8 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
 
     if player_id == current_player_id {
         // Player is already up to date
+        writer.write_u32(request_id).await;
+        writer.write_u16(0xFFFF).await;
         return;
     }
 
@@ -130,6 +156,7 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
             println!("Could not fetch the player JS: {}", x);
+            write_failure!(writer, request_id);
             return;
         }
     };
@@ -152,6 +179,7 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
         Ok(x) => x,
         Err(x) => {
             println!("Error: nsig regex compilation failed: {}", x);
+            write_failure!(writer, request_id);
             return;
         }
     };
@@ -186,10 +214,19 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
         .unwrap()
         .as_str();
 
+    // Extract signature function name
+
     current_player_info = global_state.player_info.lock().await;
     current_player_info.player_id = player_id;
     current_player_info.nsig_function_code = nsig_function_code;
-    println!("Successfully updated the player")
+
+    writer.write_u32(request_id).await;
+    // sync code to tell the client the player had updated
+    writer.write_u16(0xF44F).await;
+
+    writer.flush().await;
+
+    println!("Successfully updated the player");
 }
 
 pub async fn process_decrypt_n_signature<W>(
@@ -200,6 +237,8 @@ pub async fn process_decrypt_n_signature<W>(
 ) where
     W: tokio::io::AsyncWrite + Unpin + Send,
 {
+    let cloned_writer = stream.clone();
+    let mut writer = cloned_writer.lock().await;
     let global_state = state.clone();
 
     println!("Signature to be decrypted: {}", sig);
@@ -219,6 +258,7 @@ pub async fn process_decrypt_n_signature<W>(
                     } else {
                         println!("JavaScript interpreter error (nsig code): {}", n);
                     }
+                    write_failure!(writer, request_id);
                     return;
                 }
             }
@@ -240,12 +280,10 @@ pub async fn process_decrypt_n_signature<W>(
                 } else {
                     println!("JavaScript interpreter error (nsig code): {}", n);
                 }
+                write_failure!(writer, request_id);
                 return;
             }
         };
-
-        let cloned_writer = stream.clone();
-        let mut writer = cloned_writer.lock().await;
 
         writer.write_u32(request_id).await;
         writer.write_u16(u16::try_from(decrypted_string.len()).unwrap()).await;

@@ -86,8 +86,9 @@ async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) -> Result<(
         match opcode {
             JobOpcode::ForceUpdate => {
                 let cloned_state = state.clone();
+                let cloned_stream = cloned_writestream.clone();
                 tokio::spawn(async move {
-                    process_fetch_update(cloned_state).await;
+                    process_fetch_update(cloned_state, cloned_stream, request_id).await;
                 });
             }
             JobOpcode::DecryptNSignature => {
