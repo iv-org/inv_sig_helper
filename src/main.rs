@@ -52,6 +52,7 @@ async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
         let opcode_byte: u8 = break_fail!(bufreader.read_u8().await);
         let opcode: JobOpcode = opcode_byte.into();
 
+        println!("Received job: {}", opcode);
         match opcode {
             JobOpcode::ForceUpdate => {
                 let cloned_state = state.clone();

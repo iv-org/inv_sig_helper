@@ -1,10 +1,10 @@
 use regex::Regex;
-use rquickjs::{AsyncContext, AsyncRuntime};
-use std::{num::NonZeroUsize, ops::Deref, sync::Arc, thread::available_parallelism};
+use rquickjs::{async_with, AsyncContext, AsyncRuntime, Exception, FromJs, IntoJs};
+use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism};
 use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
 
-use crate::consts::{NSIG_FUNCTION_ARRAY, REGEX_PLAYER_ID, TEST_YOUTUBE_VIDEO};
+use crate::consts::{NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_NAME, REGEX_PLAYER_ID, TEST_YOUTUBE_VIDEO};
 
 pub enum JobOpcode {
     ForceUpdate,
@@ -12,6 +12,15 @@ pub enum JobOpcode {
     UnknownOpcode,
 }
 
+impl std::fmt::Display for JobOpcode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ForceUpdate => write!(f, "ForceUpdate"),
+            Self::DecryptNSignature => write!(f, "DecryptNSignature"),
+            Self::UnknownOpcode => write!(f, "UnknownOpcode"),
+        }
+    }
+}
 impl From<u8> for JobOpcode {
     fn from(value: u8) -> Self {
         match value {
@@ -31,33 +40,9 @@ pub struct PlayerInfo {
 }
 
 pub struct JavascriptInterpreter {
-    js_runtime: AsyncRuntimeWrapper,
-    nsig_context: AsyncContextWrapper,
-    player_id: u32,
-}
-
-// This is to get Rust to shut up, since the types are aliases for non-null pointers
-struct AsyncRuntimeWrapper(AsyncRuntime);
-struct AsyncContextWrapper(AsyncContext);
-
-unsafe impl Send for AsyncRuntimeWrapper {}
-unsafe impl Send for AsyncContextWrapper {}
-unsafe impl Sync for AsyncRuntimeWrapper {}
-unsafe impl Sync for AsyncContextWrapper {}
-impl Deref for AsyncRuntimeWrapper {
-    type Target = AsyncRuntime;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Deref for AsyncContextWrapper {
-    type Target = AsyncContext;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    js_runtime: AsyncRuntime,
+    nsig_context: AsyncContext,
+    player_id: Mutex<u32>,
 }
 
 impl JavascriptInterpreter {
@@ -70,17 +55,16 @@ impl JavascriptInterpreter {
                 .unwrap()
         });
         JavascriptInterpreter {
-            js_runtime: AsyncRuntimeWrapper(js_runtime),
-            nsig_context: AsyncContextWrapper(nsig_context),
-            player_id: 0,
+            js_runtime: js_runtime,
+            nsig_context: nsig_context,
+            player_id: Mutex::new(0),
         }
     }
 }
 
 pub struct GlobalState {
     player_info: Mutex<PlayerInfo>,
-    js_runtime_pool: Mutex<Pool<Arc<JavascriptInterpreter>>>,
-    all_runtimes: Mutex<Vec<Arc<JavascriptInterpreter>>>,
+    js_runtime_pool: Pool<Arc<JavascriptInterpreter>>,
 }
 
 impl GlobalState {
@@ -90,21 +74,17 @@ impl GlobalState {
             .get();
         let mut runtime_vector: Vec<Arc<JavascriptInterpreter>> =
             Vec::with_capacity(number_of_runtimes);
-        for n in 0..number_of_runtimes {
+        for _n in 0..number_of_runtimes {
             runtime_vector.push(Arc::new(JavascriptInterpreter::new()));
         }
-        // Make a clone of the vector, this will clone all the values inside (Arc)
-        let mut runtime_vector2: Vec<Arc<JavascriptInterpreter>> =
-            Vec::with_capacity(number_of_runtimes);
-        runtime_vector2.clone_from(&runtime_vector);
-        let runtime_pool: Pool<Arc<JavascriptInterpreter>> = Pool::from_vec(runtime_vector2);
+
+        let runtime_pool: Pool<Arc<JavascriptInterpreter>> = Pool::from_vec(runtime_vector);
         GlobalState {
             player_info: Mutex::new(PlayerInfo {
                 nsig_function_code: Default::default(),
                 player_id: Default::default(),
             }),
-            js_runtime_pool: Mutex::new(runtime_pool),
-            all_runtimes: Mutex::new(runtime_vector),
+            js_runtime_pool: runtime_pool,
         }
     }
 }
@@ -191,7 +171,8 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
     let nsig_function_code_regex = Regex::new(&nsig_function_code_regex_str).unwrap();
 
     let mut nsig_function_code = String::new();
-    nsig_function_code += "decrypt_nsig = function";
+    nsig_function_code += "function ";
+    nsig_function_code += NSIG_FUNCTION_NAME;
     nsig_function_code += nsig_function_code_regex
         .captures(&player_javascript)
         .unwrap()
@@ -202,7 +183,54 @@ pub async fn process_fetch_update(state: Arc<GlobalState>) {
     current_player_info = global_state.player_info.lock().await;
     current_player_info.player_id = player_id;
     current_player_info.nsig_function_code = nsig_function_code;
-    println!("{}", current_player_info.nsig_function_code);
+    println!("Successfully updated the player")
 }
 
-pub async fn process_decrypt_n_signature(_state: Arc<GlobalState>, _sig: String) {}
+pub async fn process_decrypt_n_signature(state: Arc<GlobalState>, sig: String) {
+    let global_state = state.clone();
+
+    println!("Signature to be decrypted: {}", sig);
+    let interp = global_state.js_runtime_pool.acquire().await;
+
+    let cloned_interp = interp.clone();
+    async_with!(cloned_interp.nsig_context => |ctx|{
+        let mut current_player_id = interp.player_id.lock().await;
+        let player_info = global_state.player_info.lock().await;
+
+        if player_info.player_id != *current_player_id {
+            match ctx.eval::<(),String>(player_info.nsig_function_code.clone()) {
+                Ok(x) => x,
+                Err(n) => {
+                    if n.is_exception() {
+                        println!("JavaScript interpreter error (nsig code): {:?}", ctx.catch().as_exception());
+                    } else {
+                        println!("JavaScript interpreter error (nsig code): {}", n);
+                    }
+                    return;
+                }
+            }
+            *current_player_id = player_info.player_id;
+        }
+        drop(player_info);
+
+        let mut call_string: String = String::new();
+        call_string += NSIG_FUNCTION_NAME;
+        call_string += "(\"";
+        call_string += &sig;
+        call_string += "\")";
+
+        let decrypted_string = match ctx.eval::<String,String>(call_string) {
+            Ok(x) => x,
+            Err(n) => {
+                if n.is_exception() {
+                    println!("JavaScript interpreter error (nsig code): {:?}", ctx.catch().as_exception());
+                } else {
+                    println!("JavaScript interpreter error (nsig code): {}", n);
+                }
+                return;
+            }
+        };
+        println!("Decrypted signature: {}", decrypted_string);
+    })
+    .await;
+}
