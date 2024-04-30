@@ -44,3 +44,28 @@ Decrypt a provided `n` signature using the server's current `nsig` function code
 |size  | 2            | The size of the decrypted signature, `0x0000` if an error occurred |
 |string| *`size`*     | The decrypted signature                                          |
 
+### `DECRYPT_SIGNATURE` (0x02)
+Decrypt a provided `s` signature using the server's current `sig` function code, and return the result (or an error).
+
+#### Request
+| Name | Size (bytes) | Description                         |
+|------|--------------|-------------------------------------|
+|size  | 2            | The size of the encrypted signature |
+|string| *`size`*     | The encrypted signature             |
+
+#### Response
+| Name | Size (bytes) | Description                                                      |
+|------|--------------|------------------------------------------------------------------|
+|size  | 2            | The size of the decrypted signature, `0x0000` if an error occurred |
+|string| *`size`*     | The decrypted signature                                          |
+
+### `GET_SIGNATURE_TIMESTAMP` (0x03)
+Get the signature timestamp from the server's current player, and return it in the form of a 64-bit integer
+
+#### Request
+No additional data required
+
+#### Response
+| Name    | Size (bytes) | Description                                              |
+|---------|--------------|----------------------------------------------------------|
+|timestamp| 8            | The signature timestamp from the server's current player |
