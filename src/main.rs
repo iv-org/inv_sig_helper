@@ -1,10 +1,13 @@
 mod consts;
 mod jobs;
+mod player;
 
 use consts::DEFAULT_SOCK_PATH;
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
+use player::fetch_update;
 use std::{env::args, io::Error, sync::Arc};
 use tokio::{
+    fs::remove_file,
     io::{self, AsyncReadExt, BufReader, BufWriter},
     net::{UnixListener, UnixStream},
     sync::Mutex,
@@ -51,8 +54,26 @@ async fn main() {
     // have to please rust
     let state: Arc<GlobalState> = Arc::new(GlobalState::new());
 
-    let socket = UnixListener::bind(socket_url).unwrap();
+    let socket = match UnixListener::bind(socket_url) {
+        Ok(x) => x,
+        Err(x) => {
+            if x.kind() == std::io::ErrorKind::AddrInUse {
+                remove_file(socket_url).await.unwrap();
+                UnixListener::bind(socket_url).unwrap()
+            } else {
+                println!("Error occurred while trying to bind: {}", x);
+                return;
+            }
+        }
+    };
 
+    println!("Fetching player");
+    match fetch_update(state.clone()).await {
+        Ok(()) => println!("Successfully fetched player"),
+        Err(x) => {
+            println!("Error occured while trying to fetch the player: {:?}", x);
+        }
+    }
     loop {
         let (socket, _addr) = socket.accept().await.unwrap();
 
