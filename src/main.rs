@@ -5,13 +5,12 @@ use consts::DEFAULT_SOCK_PATH;
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
 use std::{env::args, io::Error, sync::Arc};
 use tokio::{
-    io::{self, AsyncReadExt, BufReader, BufStream, BufWriter},
-    net::{
-        unix::{ReadHalf, WriteHalf},
-        UnixListener, UnixStream,
-    },
+    io::{self, AsyncReadExt, BufReader, BufWriter},
+    net::{UnixListener, UnixStream},
     sync::Mutex,
 };
+
+use crate::jobs::{process_decrypt_signature, process_get_signature_timestamp};
 
 macro_rules! break_fail {
     ($res:expr) => {
@@ -105,6 +104,29 @@ async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) -> Result<(
                 let cloned_stream = cloned_writestream.clone();
                 tokio::spawn(async move {
                     process_decrypt_n_signature(cloned_state, str, cloned_stream, request_id).await;
+                });
+            }
+            JobOpcode::DecryptSignature => {
+                let sig_size: usize = usize::from(eof_fail!(
+                    inside_readstream.read_u16().await,
+                    inside_readstream
+                ));
+                let mut buf = vec![0u8; sig_size];
+
+                break_fail!(inside_readstream.read_exact(&mut buf).await);
+
+                let str = break_fail!(String::from_utf8(buf));
+                let cloned_state = state.clone();
+                let cloned_stream = cloned_writestream.clone();
+                tokio::spawn(async move {
+                    process_decrypt_signature(cloned_state, str, cloned_stream, request_id).await;
+                });
+            }
+            JobOpcode::GetSignatureTimestamp => {
+                let cloned_state = state.clone();
+                let cloned_stream = cloned_writestream.clone();
+                tokio::spawn(async move {
+                    process_get_signature_timestamp(cloned_state, cloned_stream, request_id).await;
                 });
             }
             _ => {}

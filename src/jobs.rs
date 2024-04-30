@@ -1,16 +1,13 @@
 use regex::Regex;
-use rquickjs::{async_with, AsyncContext, AsyncRuntime, Exception, FromJs, IntoJs};
-use std::{num::NonZeroUsize, pin::Pin, sync::Arc, thread::available_parallelism};
-use tokio::{
-    io::{AsyncWrite, AsyncWriteExt, BufWriter},
-    net::{unix::WriteHalf, UnixStream},
-    runtime::Handle,
-    sync::Mutex,
-    task::block_in_place,
-};
+use rquickjs::{async_with, AsyncContext, AsyncRuntime};
+use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism};
+use tokio::{io::AsyncWriteExt, runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
 
-use crate::consts::{NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_NAME, REGEX_PLAYER_ID, TEST_YOUTUBE_VIDEO};
+use crate::consts::{
+    NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_NAME, REGEX_HELPER_OBJ_NAME, REGEX_PLAYER_ID,
+    REGEX_SIGNATURE_FUNCTION, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
+};
 
 pub enum JobOpcode {
     ForceUpdate,
@@ -45,13 +42,18 @@ impl From<u8> for JobOpcode {
 
 pub struct PlayerInfo {
     nsig_function_code: String,
+    sig_function_code: String,
+    sig_function_name: String,
+    signature_timestamp: u64,
     player_id: u32,
 }
 
 pub struct JavascriptInterpreter {
     js_runtime: AsyncRuntime,
+    sig_context: AsyncContext,
     nsig_context: AsyncContext,
-    player_id: Mutex<u32>,
+    sig_player_id: Mutex<u32>,
+    nsig_player_id: Mutex<u32>,
 }
 
 impl JavascriptInterpreter {
@@ -63,10 +65,17 @@ impl JavascriptInterpreter {
                 .block_on(AsyncContext::full(&js_runtime))
                 .unwrap()
         });
+        let sig_context = block_in_place(|| {
+            Handle::current()
+                .block_on(AsyncContext::full(&js_runtime))
+                .unwrap()
+        });
         JavascriptInterpreter {
-            js_runtime: js_runtime,
-            nsig_context: nsig_context,
-            player_id: Mutex::new(0),
+            js_runtime,
+            sig_context,
+            nsig_context,
+            sig_player_id: Mutex::new(0),
+            nsig_player_id: Mutex::new(0),
         }
     }
 }
@@ -91,7 +100,10 @@ impl GlobalState {
         GlobalState {
             player_info: Mutex::new(PlayerInfo {
                 nsig_function_code: Default::default(),
+                sig_function_code: Default::default(),
+                sig_function_name: Default::default(),
                 player_id: Default::default(),
+                signature_timestamp: Default::default(),
             }),
             js_runtime_pool: runtime_pool,
         }
@@ -113,13 +125,14 @@ pub async fn process_fetch_update<W>(
     W: tokio::io::AsyncWrite + Unpin + Send,
 {
     let cloned_writer = stream.clone();
-    let mut writer = cloned_writer.lock().await;
+    let mut writer;
 
     let global_state = state.clone();
     let response = match reqwest::get(TEST_YOUTUBE_VIDEO).await {
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
             println!("Could not fetch the test video: {}", x);
+            writer = cloned_writer.lock().await;
             write_failure!(writer, request_id);
             return;
         }
@@ -128,6 +141,7 @@ pub async fn process_fetch_update<W>(
     let player_id_str = match REGEX_PLAYER_ID.captures(&response).unwrap().get(1) {
         Some(result) => result.as_str(),
         None => {
+            writer = cloned_writer.lock().await;
             write_failure!(writer, request_id);
             return;
         }
@@ -142,6 +156,7 @@ pub async fn process_fetch_update<W>(
 
     if player_id == current_player_id {
         // Player is already up to date
+        writer = cloned_writer.lock().await;
         writer.write_u32(request_id).await;
         writer.write_u16(0xFFFF).await;
         return;
@@ -156,6 +171,7 @@ pub async fn process_fetch_update<W>(
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
             println!("Could not fetch the player JS: {}", x);
+            writer = cloned_writer.lock().await;
             write_failure!(writer, request_id);
             return;
         }
@@ -179,6 +195,7 @@ pub async fn process_fetch_update<W>(
         Ok(x) => x,
         Err(x) => {
             println!("Error: nsig regex compilation failed: {}", x);
+            writer = cloned_writer.lock().await;
             write_failure!(writer, request_id);
             return;
         }
@@ -190,7 +207,7 @@ pub async fn process_fetch_update<W>(
         .get(1)
         .unwrap()
         .as_str()
-        .split(",");
+        .split(',');
 
     let array_values: Vec<&str> = array_content.collect();
 
@@ -215,11 +232,69 @@ pub async fn process_fetch_update<W>(
         .as_str();
 
     // Extract signature function name
+    let sig_function_name = REGEX_SIGNATURE_FUNCTION
+        .captures(&player_javascript)
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_str();
+
+    let mut sig_function_body_regex_str: String = String::new();
+    sig_function_body_regex_str += sig_function_name;
+    sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
+
+    let sig_function_body_regex = Regex::new(&sig_function_body_regex_str).unwrap();
+
+    let sig_function_body = sig_function_body_regex
+        .captures(&player_javascript)
+        .unwrap()
+        .get(0)
+        .unwrap()
+        .as_str();
+
+    // Get the helper object
+    let helper_object_name = REGEX_HELPER_OBJ_NAME
+        .captures(sig_function_body)
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_str();
+
+    let mut helper_object_body_regex_str = String::new();
+    helper_object_body_regex_str += "var ";
+    helper_object_body_regex_str += helper_object_name;
+    helper_object_body_regex_str += "=\\{(?>.|\\n)+?\\}\\};";
+
+    let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
+    let helper_object_body = helper_object_body_regex
+        .captures(&player_javascript)
+        .unwrap()
+        .get(0)
+        .unwrap()
+        .as_str();
+
+    let mut sig_code = String::new();
+    sig_code += helper_object_body;
+    sig_code += sig_function_body;
+
+    // Get signature timestamp
+    let signature_timestamp: u64 = REGEX_SIGNATURE_TIMESTAMP
+        .captures(&player_javascript)
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_str()
+        .parse()
+        .unwrap();
 
     current_player_info = global_state.player_info.lock().await;
     current_player_info.player_id = player_id;
     current_player_info.nsig_function_code = nsig_function_code;
+    current_player_info.sig_function_code = sig_code;
+    current_player_info.sig_function_name = sig_function_name.to_string();
+    current_player_info.signature_timestamp = signature_timestamp;
 
+    writer = cloned_writer.lock().await;
     writer.write_u32(request_id).await;
     // sync code to tell the client the player had updated
     writer.write_u16(0xF44F).await;
@@ -238,7 +313,6 @@ pub async fn process_decrypt_n_signature<W>(
     W: tokio::io::AsyncWrite + Unpin + Send,
 {
     let cloned_writer = stream.clone();
-    let mut writer = cloned_writer.lock().await;
     let global_state = state.clone();
 
     println!("Signature to be decrypted: {}", sig);
@@ -246,7 +320,8 @@ pub async fn process_decrypt_n_signature<W>(
 
     let cloned_interp = interp.clone();
     async_with!(cloned_interp.nsig_context => |ctx|{
-        let mut current_player_id = interp.player_id.lock().await;
+        let mut writer;
+        let mut current_player_id = interp.nsig_player_id.lock().await;
         let player_info = global_state.player_info.lock().await;
 
         if player_info.player_id != *current_player_id {
@@ -258,6 +333,7 @@ pub async fn process_decrypt_n_signature<W>(
                     } else {
                         println!("JavaScript interpreter error (nsig code): {}", n);
                     }
+                    writer = cloned_writer.lock().await;
                     write_failure!(writer, request_id);
                     return;
                 }
@@ -280,18 +356,111 @@ pub async fn process_decrypt_n_signature<W>(
                 } else {
                     println!("JavaScript interpreter error (nsig code): {}", n);
                 }
+                writer = cloned_writer.lock().await;
                 write_failure!(writer, request_id);
                 return;
             }
         };
 
+        writer = cloned_writer.lock().await;
+
         writer.write_u32(request_id).await;
         writer.write_u16(u16::try_from(decrypted_string.len()).unwrap()).await;
         writer.write_all(decrypted_string.as_bytes()).await;
 
-        writer.flush().await;
         println!("Decrypted signature: {}", decrypted_string);
 
     })
     .await;
+}
+
+pub async fn process_decrypt_signature<W>(
+    state: Arc<GlobalState>,
+    sig: String,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: tokio::io::AsyncWrite + Unpin + Send,
+{
+    let cloned_writer = stream.clone();
+    let global_state = state.clone();
+
+    let interp = global_state.js_runtime_pool.acquire().await;
+    let cloned_interp = interp.clone();
+
+    async_with!(cloned_interp.sig_context => |ctx|{
+        let mut writer;
+        let mut current_player_id = interp.sig_player_id.lock().await;
+        let player_info = global_state.player_info.lock().await;
+
+        if player_info.player_id != *current_player_id {
+            match ctx.eval::<(),String>(player_info.sig_function_code.clone()) {
+                Ok(x) => x,
+                Err(n) => {
+                    if n.is_exception() {
+                        println!("JavaScript interpreter error (sig code): {:?}", ctx.catch().as_exception());
+                    } else {
+                        println!("JavaScript interpreter error (sig code): {}", n);
+                    }
+                    writer = cloned_writer.lock().await;
+                    write_failure!(writer, request_id);
+                    return;
+                }
+            }
+            *current_player_id = player_info.player_id;
+        }
+
+        let sig_function_name = &player_info.sig_function_name;
+
+        let mut call_string: String = String::new();
+        call_string += sig_function_name;
+        call_string += "(\"";
+        call_string += &sig;
+        call_string += "\")";
+
+        drop(player_info);
+
+        let decrypted_string = match ctx.eval::<String,String>(call_string) {
+            Ok(x) => x,
+            Err(n) => {
+                if n.is_exception() {
+                    println!("JavaScript interpreter error (sig code): {:?}", ctx.catch().as_exception());
+                } else {
+                    println!("JavaScript interpreter error (sig code): {}", n);
+                }
+                writer = cloned_writer.lock().await;
+                write_failure!(writer, request_id);
+                return;
+            }
+        };
+
+        writer = cloned_writer.lock().await;
+
+        writer.write_u32(request_id).await;
+        writer.write_u16(u16::try_from(decrypted_string.len()).unwrap()).await;
+        writer.write_all(decrypted_string.as_bytes()).await;
+
+        println!("Decrypted signature: {}", decrypted_string);
+
+    })
+    .await;
+}
+
+pub async fn process_get_signature_timestamp<W>(
+    state: Arc<GlobalState>,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: tokio::io::AsyncWrite + Unpin + Send,
+{
+    let cloned_writer = stream.clone();
+    let global_state = state.clone();
+
+    let player_info = global_state.player_info.lock().await;
+    let timestamp = player_info.signature_timestamp;
+
+    let mut writer = cloned_writer.lock().await;
+
+    writer.write_u32(request_id).await;
+    writer.write_u64(timestamp).await;
 }
