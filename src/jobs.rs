@@ -1,3 +1,4 @@
+use futures::{Sink, SinkExt, Stream, StreamExt};
 use rquickjs::{async_with, AsyncContext, AsyncRuntime};
 use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism};
 use tokio::{io::AsyncWriteExt, runtime::Handle, sync::Mutex, task::block_in_place};
@@ -5,6 +6,7 @@ use tub::Pool;
 
 use crate::{
     consts::NSIG_FUNCTION_NAME,
+    opcode::OpcodeResponse,
     player::{fetch_update, FetchUpdateStatus},
 };
 
@@ -109,44 +111,27 @@ impl GlobalState {
     }
 }
 
-macro_rules! write_failure {
-    ($s:ident, $r:ident) => {
-        $s.write_u32($r).await;
-        $s.write_u16(0x0000).await;
-    };
-}
-
 pub async fn process_fetch_update<W>(
     state: Arc<GlobalState>,
     stream: Arc<Mutex<W>>,
     request_id: u32,
 ) where
-    W: tokio::io::AsyncWrite + Unpin + Send,
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
 {
     let cloned_writer = stream.clone();
-    let mut writer;
-
     let global_state = state.clone();
+    let status = fetch_update(global_state).await;
 
-    match fetch_update(global_state).await {
-        Ok(_x) => {
-            writer = cloned_writer.lock().await;
-            writer.write_u32(request_id).await;
-            // sync code to tell the client the player had updated
-            writer.write_u16(0xF44F).await;
-            println!("Successfully updated the player");
-        }
-        Err(FetchUpdateStatus::PlayerAlreadyUpdated) => {
-            writer = cloned_writer.lock().await;
-            writer.write_u32(request_id).await;
-            writer.write_u16(0xFFFF).await;
-        }
-        Err(_x) => {
-            writer = cloned_writer.lock().await;
-            writer.write_u32(request_id).await;
-            writer.write_u16(0).await;
-        }
-    }
+    let mut writer = cloned_writer.lock().await;
+    writer
+        .send(OpcodeResponse {
+            opcode: JobOpcode::ForceUpdate,
+            request_id,
+            update_status: status,
+            signature: Default::default(),
+            signature_timestamp: Default::default(),
+        })
+        .await;
 }
 
 pub async fn process_decrypt_n_signature<W>(
@@ -155,7 +140,7 @@ pub async fn process_decrypt_n_signature<W>(
     stream: Arc<Mutex<W>>,
     request_id: u32,
 ) where
-    W: tokio::io::AsyncWrite + Unpin + Send,
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
 {
     let cloned_writer = stream.clone();
     let global_state = state.clone();
@@ -179,7 +164,13 @@ pub async fn process_decrypt_n_signature<W>(
                         println!("JavaScript interpreter error (nsig code): {}", n);
                     }
                     writer = cloned_writer.lock().await;
-                    write_failure!(writer, request_id);
+                    writer.send(OpcodeResponse {
+                        opcode: JobOpcode::DecryptNSignature,
+                        request_id,
+                        update_status: Ok(Default::default()),
+                        signature: String::new(),
+                        signature_timestamp: Default::default()
+                    }).await;
                     return;
                 }
             }
@@ -190,7 +181,7 @@ pub async fn process_decrypt_n_signature<W>(
         let mut call_string: String = String::new();
         call_string += NSIG_FUNCTION_NAME;
         call_string += "(\"";
-        call_string += &sig;
+        call_string += &sig.replace("\"", "\\\"");
         call_string += "\")";
 
         let decrypted_string = match ctx.eval::<String,String>(call_string) {
@@ -202,19 +193,26 @@ pub async fn process_decrypt_n_signature<W>(
                     println!("JavaScript interpreter error (nsig code): {}", n);
                 }
                 writer = cloned_writer.lock().await;
-                write_failure!(writer, request_id);
+                writer.send(OpcodeResponse {
+                    opcode: JobOpcode::DecryptNSignature,
+                    request_id,
+                    update_status: Ok(Default::default()),
+                    signature: String::new(),
+                    signature_timestamp: Default::default()
+                }).await;
                 return;
             }
         };
 
         writer = cloned_writer.lock().await;
 
-        writer.write_u32(request_id).await;
-        writer.write_u16(u16::try_from(decrypted_string.len()).unwrap()).await;
-        writer.write_all(decrypted_string.as_bytes()).await;
-
-        println!("Decrypted signature: {}", decrypted_string);
-
+        writer.send(OpcodeResponse {
+            opcode: JobOpcode::DecryptNSignature,
+            request_id,
+            update_status: Ok(Default::default()),
+            signature: decrypted_string,
+            signature_timestamp: Default::default()
+        }).await;
     })
     .await;
 }
@@ -225,7 +223,7 @@ pub async fn process_decrypt_signature<W>(
     stream: Arc<Mutex<W>>,
     request_id: u32,
 ) where
-    W: tokio::io::AsyncWrite + Unpin + Send,
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
 {
     let cloned_writer = stream.clone();
     let global_state = state.clone();
@@ -248,7 +246,13 @@ pub async fn process_decrypt_signature<W>(
                         println!("JavaScript interpreter error (sig code): {}", n);
                     }
                     writer = cloned_writer.lock().await;
-                    write_failure!(writer, request_id);
+                    writer.send(OpcodeResponse {
+                        opcode: JobOpcode::DecryptSignature,
+                        request_id,
+                        update_status: Ok(Default::default()),
+                        signature: String::new(),
+                        signature_timestamp: Default::default()
+                    }).await;
                     return;
                 }
             }
@@ -260,7 +264,7 @@ pub async fn process_decrypt_signature<W>(
         let mut call_string: String = String::new();
         call_string += sig_function_name;
         call_string += "(\"";
-        call_string += &sig;
+        call_string += &sig.replace("\"", "\\\"");
         call_string += "\")";
 
         drop(player_info);
@@ -274,19 +278,26 @@ pub async fn process_decrypt_signature<W>(
                     println!("JavaScript interpreter error (sig code): {}", n);
                 }
                 writer = cloned_writer.lock().await;
-                write_failure!(writer, request_id);
+                writer.send(OpcodeResponse {
+                    opcode: JobOpcode::DecryptSignature,
+                    request_id,
+                    update_status: Ok(Default::default()),
+                    signature: String::new(),
+                    signature_timestamp: Default::default()
+                }).await;
                 return;
             }
         };
 
         writer = cloned_writer.lock().await;
 
-        writer.write_u32(request_id).await;
-        writer.write_u16(u16::try_from(decrypted_string.len()).unwrap()).await;
-        writer.write_all(decrypted_string.as_bytes()).await;
-
-        println!("Decrypted signature: {}", decrypted_string);
-
+        writer.send(OpcodeResponse {
+            opcode: JobOpcode::DecryptSignature,
+            request_id,
+            update_status: Ok(Default::default()),
+            signature: decrypted_string,
+            signature_timestamp: Default::default(),
+        }).await;
     })
     .await;
 }
@@ -296,7 +307,7 @@ pub async fn process_get_signature_timestamp<W>(
     stream: Arc<Mutex<W>>,
     request_id: u32,
 ) where
-    W: tokio::io::AsyncWrite + Unpin + Send,
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
 {
     let cloned_writer = stream.clone();
     let global_state = state.clone();
@@ -305,7 +316,13 @@ pub async fn process_get_signature_timestamp<W>(
     let timestamp = player_info.signature_timestamp;
 
     let mut writer = cloned_writer.lock().await;
-
-    writer.write_u32(request_id).await;
-    writer.write_u64(timestamp).await;
+    writer
+        .send(OpcodeResponse {
+            opcode: JobOpcode::GetSignatureTimestamp,
+            request_id,
+            update_status: Ok(Default::default()),
+            signature: String::new(),
+            signature_timestamp: timestamp,
+        })
+        .await;
 }

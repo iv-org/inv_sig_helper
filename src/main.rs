@@ -1,17 +1,25 @@
 mod consts;
 mod jobs;
+mod opcode;
 mod player;
 
+use ::futures::StreamExt;
 use consts::DEFAULT_SOCK_PATH;
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
+use opcode::OpcodeDecoder;
 use player::fetch_update;
-use std::{env::args, io::Error, sync::Arc};
+use std::{env::args, future, io::Error, sync::Arc};
 use tokio::{
     fs::remove_file,
-    io::{self, AsyncReadExt, BufReader, BufWriter},
-    net::{UnixListener, UnixStream},
+    io::{
+        self, AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, BufReader,
+        BufWriter, Interest, Ready,
+    },
+    net::{TcpListener, UnixListener, UnixStream},
     sync::Mutex,
+    task::{futures, spawn_blocking},
 };
+use tokio_util::codec::{Decoder, Framed, FramedRead, FramedWrite};
 
 use crate::jobs::{process_decrypt_signature, process_get_signature_timestamp};
 
@@ -32,10 +40,6 @@ macro_rules! eof_fail {
         match $res {
             Ok(value) => value,
             Err(e) => {
-                if (e.kind() == io::ErrorKind::UnexpectedEof) {
-                    $stream.get_ref().readable().await?;
-                    continue;
-                }
                 println!("An error occurred while parsing the current request: {}", e);
                 break;
             }
@@ -54,11 +58,11 @@ async fn main() {
     // have to please rust
     let state: Arc<GlobalState> = Arc::new(GlobalState::new());
 
-    let socket = match UnixListener::bind(socket_url) {
+    let socket: UnixListener = match UnixListener::bind(socket_url) {
         Ok(x) => x,
         Err(x) => {
             if x.kind() == std::io::ErrorKind::AddrInUse {
-                remove_file(socket_url).await.unwrap();
+                remove_file(socket_url);
                 UnixListener::bind(socket_url).unwrap()
             } else {
                 println!("Error occurred while trying to bind: {}", x);
@@ -78,81 +82,82 @@ async fn main() {
         let (socket, _addr) = socket.accept().await.unwrap();
 
         let cloned_state = state.clone();
-        tokio::spawn(async {
+        tokio::spawn(async move {
             process_socket(cloned_state, socket).await;
         });
     }
 }
 
-async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) -> Result<(), Error> {
+async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
     let (rd, wr) = socket.into_split();
 
-    let wrapped_readstream = Arc::new(Mutex::new(BufReader::new(rd)));
-    let wrapped_writestream = Arc::new(Mutex::new(BufWriter::new(wr)));
+    let decoder = OpcodeDecoder {};
 
-    let cloned_readstream = wrapped_readstream.clone();
-    let mut inside_readstream = cloned_readstream.lock().await;
+    let sink = FramedWrite::new(wr, decoder);
+    let mut stream = FramedRead::new(rd, decoder);
 
-    loop {
-        inside_readstream.get_ref().readable().await?;
+    let arc_sink = Arc::new(Mutex::new(sink));
+    while let Some(opcode_res) = stream.next().await {
+        match opcode_res {
+            Ok(opcode) => {
+                println!("Received job: {}", opcode.opcode);
 
-        let cloned_writestream = wrapped_writestream.clone();
-
-        let opcode_byte: u8 = eof_fail!(inside_readstream.read_u8().await, inside_readstream);
-        let opcode: JobOpcode = opcode_byte.into();
-        let request_id: u32 = eof_fail!(inside_readstream.read_u32().await, inside_readstream);
-
-        println!("Received job: {}", opcode);
-        match opcode {
-            JobOpcode::ForceUpdate => {
-                let cloned_state = state.clone();
-                let cloned_stream = cloned_writestream.clone();
-                tokio::spawn(async move {
-                    process_fetch_update(cloned_state, cloned_stream, request_id).await;
-                });
+                match opcode.opcode {
+                    JobOpcode::ForceUpdate => {
+                        let cloned_state = state.clone();
+                        let cloned_sink = arc_sink.clone();
+                        tokio::spawn(async move {
+                            process_fetch_update(cloned_state, cloned_sink, opcode.request_id)
+                                .await;
+                        });
+                    }
+                    JobOpcode::DecryptNSignature => {
+                        let cloned_state = state.clone();
+                        let cloned_sink = arc_sink.clone();
+                        tokio::spawn(async move {
+                            process_decrypt_n_signature(
+                                cloned_state,
+                                opcode.signature,
+                                cloned_sink,
+                                opcode.request_id,
+                            )
+                            .await;
+                        });
+                    }
+                    JobOpcode::DecryptSignature => {
+                        let cloned_state = state.clone();
+                        let cloned_sink = arc_sink.clone();
+                        tokio::spawn(async move {
+                            process_decrypt_signature(
+                                cloned_state,
+                                opcode.signature,
+                                cloned_sink,
+                                opcode.request_id,
+                            )
+                            .await;
+                        });
+                    }
+                    JobOpcode::GetSignatureTimestamp => {
+                        let cloned_state = state.clone();
+                        let cloned_sink = arc_sink.clone();
+                        tokio::spawn(async move {
+                            process_get_signature_timestamp(
+                                cloned_state,
+                                cloned_sink,
+                                opcode.request_id,
+                            )
+                            .await;
+                        });
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
             }
-            JobOpcode::DecryptNSignature => {
-                let sig_size: usize = usize::from(eof_fail!(
-                    inside_readstream.read_u16().await,
-                    inside_readstream
-                ));
-                let mut buf = vec![0u8; sig_size];
-
-                break_fail!(inside_readstream.read_exact(&mut buf).await);
-
-                let str = break_fail!(String::from_utf8(buf));
-                let cloned_state = state.clone();
-                let cloned_stream = cloned_writestream.clone();
-                tokio::spawn(async move {
-                    process_decrypt_n_signature(cloned_state, str, cloned_stream, request_id).await;
-                });
+            Err(x) => {
+                println!("I/O error: {:?}", x);
+                break;
             }
-            JobOpcode::DecryptSignature => {
-                let sig_size: usize = usize::from(eof_fail!(
-                    inside_readstream.read_u16().await,
-                    inside_readstream
-                ));
-                let mut buf = vec![0u8; sig_size];
-
-                break_fail!(inside_readstream.read_exact(&mut buf).await);
-
-                let str = break_fail!(String::from_utf8(buf));
-                let cloned_state = state.clone();
-                let cloned_stream = cloned_writestream.clone();
-                tokio::spawn(async move {
-                    process_decrypt_signature(cloned_state, str, cloned_stream, request_id).await;
-                });
-            }
-            JobOpcode::GetSignatureTimestamp => {
-                let cloned_state = state.clone();
-                let cloned_stream = cloned_writestream.clone();
-                tokio::spawn(async move {
-                    process_get_signature_timestamp(cloned_state, cloned_stream, request_id).await;
-                });
-            }
-            _ => {}
         }
     }
-
-    Ok(())
 }
