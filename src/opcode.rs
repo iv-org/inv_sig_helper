@@ -34,6 +34,7 @@ impl Decoder for OpcodeDecoder {
         &mut self,
         src: &mut tokio_util::bytes::BytesMut,
     ) -> Result<Option<Self::Item>, Self::Error> {
+        println!("Decoder length: {}", src.len());
         if 5 > src.len() {
             return Ok(None);
         }

@@ -62,7 +62,7 @@ async fn main() {
         Ok(x) => x,
         Err(x) => {
             if x.kind() == std::io::ErrorKind::AddrInUse {
-                remove_file(socket_url);
+                remove_file(socket_url).await;
                 UnixListener::bind(socket_url).unwrap()
             } else {
                 println!("Error occurred while trying to bind: {}", x);
@@ -89,12 +89,10 @@ async fn main() {
 }
 
 async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
-    let (rd, wr) = socket.into_split();
-
     let decoder = OpcodeDecoder {};
+    let str = Framed::new(socket, decoder);
 
-    let sink = FramedWrite::new(wr, decoder);
-    let mut stream = FramedRead::new(rd, decoder);
+    let (sink, mut stream) = str.split();
 
     let arc_sink = Arc::new(Mutex::new(sink));
     while let Some(opcode_res) = stream.next().await {
