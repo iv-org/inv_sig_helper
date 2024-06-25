@@ -14,6 +14,7 @@ The data afterwards depends on the supplied opcode, Please consult the **Operati
 | Name       | Size (bytes) | Description                           |
 |------------|--------------|---------------------------------------|
 |request_id  | 4            | The ID for the request that this response is meant for |
+|size        | 4            | Size of the response (excluding size of request id)|
 
 The data afterwards depends on the supplied opcode, Please consult the **Operations** chapter for more information.
 

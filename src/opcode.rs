@@ -96,18 +96,23 @@ impl Encoder<OpcodeResponse> for OpcodeDecoder {
     ) -> Result<(), Self::Error> {
         dst.put_u32(item.request_id);
         match item.opcode {
-            JobOpcode::ForceUpdate => match item.update_status {
-                Ok(_x) => dst.put_u16(0xF44F),
-                Err(FetchUpdateStatus::PlayerAlreadyUpdated) => dst.put_u16(0xFFFF),
-                Err(_x) => dst.put_u16(0x0000),
-            },
+            JobOpcode::ForceUpdate => {
+                dst.put_u32(2);
+                match item.update_status {
+                    Ok(_x) => dst.put_u16(0xF44F),
+                    Err(FetchUpdateStatus::PlayerAlreadyUpdated) => dst.put_u16(0xFFFF),
+                    Err(_x) => dst.put_u16(0x0000),
+                }
+            }
             JobOpcode::DecryptSignature | JobOpcode::DecryptNSignature => {
+                dst.put_u32(2 + u32::try_from(item.signature.len()).unwrap());
                 dst.put_u16(u16::try_from(item.signature.len()).unwrap());
                 if !item.signature.is_empty() {
                     dst.put_slice(item.signature.as_bytes());
                 }
             }
             JobOpcode::GetSignatureTimestamp => {
+                dst.put_u32(8);
                 dst.put_u64(item.signature_timestamp);
             }
             _ => {}
