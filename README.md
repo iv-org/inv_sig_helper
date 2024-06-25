@@ -28,7 +28,7 @@ Forces the server to re-fetch the YouTube player, and extract the necessary comp
 #### Response
 | Name | Size (bytes) | Description |
 |------|--------------|-------------|
-|status| 4            | The status code of the request: `0xF44F` if successful, `0xFFFF` if no updating is required (YouTube's player ID is equal to the server's current player ID), `0x0000` if an error occurred |
+|status| 2            | The status code of the request: `0xF44F` if successful, `0xFFFF` if no updating is required (YouTube's player ID is equal to the server's current player ID), `0x0000` if an error occurred |
 
 ### `DECRYPT_N_SIGNATURE` (0x01)
 Decrypt a provided `n` signature using the server's current `nsig` function code, and return the result (or an error).
