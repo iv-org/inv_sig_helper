@@ -81,6 +81,6 @@ No additional data required
 
 | Name     | Size (bytes) | Description |
 |----------|--------------|-------------|
-|has_player| 1            | If the server has a player, this variable will be `0xFF`, or else, it will be `0x00`|
-|player_id | 4            | The server's current player ID, If the server has no player, this will always be `0x00000000`|
+|has_player| 1            | If the server has a player, this variable will be `0xFF`. or else, it will be `0x00`|
+|player_id | 4            | The server's current player ID. If the server has no player, this will always be `0x00000000`|
 
