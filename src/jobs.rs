@@ -15,6 +15,7 @@ pub enum JobOpcode {
     DecryptNSignature,
     DecryptSignature,
     GetSignatureTimestamp,
+    PlayerStatus,
     UnknownOpcode,
 }
 
@@ -25,6 +26,7 @@ impl std::fmt::Display for JobOpcode {
             Self::DecryptNSignature => write!(f, "DecryptNSignature"),
             Self::DecryptSignature => write!(f, "DecryptSignature"),
             Self::GetSignatureTimestamp => write!(f, "GetSignatureTimestamp"),
+            Self::PlayerStatus => write!(f, "PlayerStatus"),
             Self::UnknownOpcode => write!(f, "UnknownOpcode"),
         }
     }
@@ -36,6 +38,7 @@ impl From<u8> for JobOpcode {
             0x01 => Self::DecryptNSignature,
             0x02 => Self::DecryptSignature,
             0x03 => Self::GetSignatureTimestamp,
+            0x04 => Self::PlayerStatus,
             _ => Self::UnknownOpcode,
         }
     }
@@ -47,6 +50,7 @@ pub struct PlayerInfo {
     pub sig_function_name: String,
     pub signature_timestamp: u64,
     pub player_id: u32,
+    pub has_player: u8,
 }
 
 pub struct JavascriptInterpreter {
@@ -105,6 +109,7 @@ impl GlobalState {
                 sig_function_name: Default::default(),
                 player_id: Default::default(),
                 signature_timestamp: Default::default(),
+                has_player: 0x00,
             }),
             js_runtime_pool: runtime_pool,
         }
@@ -130,6 +135,8 @@ pub async fn process_fetch_update<W>(
             update_status: status,
             signature: Default::default(),
             signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
         })
         .await;
 }
@@ -169,7 +176,9 @@ pub async fn process_decrypt_n_signature<W>(
                         request_id,
                         update_status: Ok(Default::default()),
                         signature: String::new(),
-                        signature_timestamp: Default::default()
+                        signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
                     }).await;
                     return;
                 }
@@ -198,7 +207,9 @@ pub async fn process_decrypt_n_signature<W>(
                     request_id,
                     update_status: Ok(Default::default()),
                     signature: String::new(),
-                    signature_timestamp: Default::default()
+                    signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
                 }).await;
                 return;
             }
@@ -211,7 +222,9 @@ pub async fn process_decrypt_n_signature<W>(
             request_id,
             update_status: Ok(Default::default()),
             signature: decrypted_string,
-            signature_timestamp: Default::default()
+            signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
         }).await;
     })
     .await;
@@ -251,7 +264,9 @@ pub async fn process_decrypt_signature<W>(
                         request_id,
                         update_status: Ok(Default::default()),
                         signature: String::new(),
-                        signature_timestamp: Default::default()
+                        signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
                     }).await;
                     return;
                 }
@@ -283,7 +298,9 @@ pub async fn process_decrypt_signature<W>(
                     request_id,
                     update_status: Ok(Default::default()),
                     signature: String::new(),
-                    signature_timestamp: Default::default()
+                    signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
                 }).await;
                 return;
             }
@@ -297,6 +314,8 @@ pub async fn process_decrypt_signature<W>(
             update_status: Ok(Default::default()),
             signature: decrypted_string,
             signature_timestamp: Default::default(),
+            has_player: Default::default(),
+            player_id: Default::default(),
         }).await;
     })
     .await;
@@ -323,6 +342,37 @@ pub async fn process_get_signature_timestamp<W>(
             update_status: Ok(Default::default()),
             signature: String::new(),
             signature_timestamp: timestamp,
+            has_player: Default::default(),
+            player_id: Default::default(),
+        })
+        .await;
+}
+
+pub async fn process_player_status<W>(
+    state: Arc<GlobalState>,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
+{
+    let cloned_writer = stream.clone();
+    let global_state = state.clone();
+
+    let player_info = global_state.player_info.lock().await;
+    let has_player = player_info.has_player;
+    let player_id = player_info.player_id;
+
+    let mut writer = cloned_writer.lock().await;
+
+    writer
+        .send(OpcodeResponse {
+            opcode: JobOpcode::PlayerStatus,
+            request_id,
+            update_status: Ok(Default::default()),
+            signature: String::new(),
+            signature_timestamp: Default::default(),
+            has_player,
+            player_id,
         })
         .await;
 }

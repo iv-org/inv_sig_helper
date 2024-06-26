@@ -24,6 +24,9 @@ pub struct OpcodeResponse {
     pub update_status: Result<(), FetchUpdateStatus>,
     pub signature: String,
     pub signature_timestamp: u64,
+
+    pub has_player: u8,
+    pub player_id: u32,
 }
 
 impl Decoder for OpcodeDecoder {
@@ -44,7 +47,7 @@ impl Decoder for OpcodeDecoder {
         let request_id: u32 = u32::from_be_bytes(src[1..5].try_into().unwrap());
 
         match opcode {
-            JobOpcode::ForceUpdate | JobOpcode::GetSignatureTimestamp => {
+            JobOpcode::ForceUpdate | JobOpcode::GetSignatureTimestamp | JobOpcode::PlayerStatus => {
                 src.advance(5);
                 Ok(Some(Opcode {
                     opcode,
@@ -114,6 +117,11 @@ impl Encoder<OpcodeResponse> for OpcodeDecoder {
             JobOpcode::GetSignatureTimestamp => {
                 dst.put_u32(8);
                 dst.put_u64(item.signature_timestamp);
+            }
+            JobOpcode::PlayerStatus => {
+                dst.put_u32(5);
+                dst.put_u8(item.has_player);
+                dst.put_u32(item.player_id);
             }
             _ => {}
         }

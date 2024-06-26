@@ -61,7 +61,7 @@ Decrypt a provided `s` signature using the server's current `sig` function code,
 |string| *`size`*     | The decrypted signature                                          |
 
 ### `GET_SIGNATURE_TIMESTAMP` (0x03)
-Get the signature timestamp from the server's current player, and return it in the form of a 64-bit integer
+Get the signature timestamp from the server's current player, and return it in the form of a 64-bit integer. If there's no player, it will return 0 in the `timestamp` (Please check with `PLAYER_STATUS` if the server has a player)
 
 #### Request
 No additional data required
@@ -70,3 +70,17 @@ No additional data required
 | Name    | Size (bytes) | Description                                              |
 |---------|--------------|----------------------------------------------------------|
 |timestamp| 8            | The signature timestamp from the server's current player |
+
+### `PLAYER_STATUS` (0x04)
+Get the server's information about the current player.
+
+#### Request
+No additional data required
+
+#### Response
+
+| Name     | Size (bytes) | Description |
+|----------|--------------|-------------|
+|has_player| 1            | If the server has a player, this variable will be `0xFF`, or else, it will be `0x00`|
+|player_id | 4            | The server's current player ID, If the server has no player, this will always be `0x00000000`|
+

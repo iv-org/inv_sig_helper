@@ -21,7 +21,9 @@ use tokio::{
 };
 use tokio_util::codec::{Decoder, Framed, FramedRead, FramedWrite};
 
-use crate::jobs::{process_decrypt_signature, process_get_signature_timestamp};
+use crate::jobs::{
+    process_decrypt_signature, process_get_signature_timestamp, process_player_status,
+};
 
 macro_rules! break_fail {
     ($res:expr) => {
@@ -145,6 +147,14 @@ async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
                                 opcode.request_id,
                             )
                             .await;
+                        });
+                    }
+                    JobOpcode::PlayerStatus => {
+                        let cloned_state = state.clone();
+                        let cloned_sink = arc_sink.clone();
+                        tokio::spawn(async move {
+                            process_player_status(cloned_state, cloned_sink, opcode.request_id)
+                                .await;
                         });
                     }
                     _ => {
