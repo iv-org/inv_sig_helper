@@ -70,7 +70,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
     let mut nsig_array_context_regex: String = String::new();
     nsig_array_context_regex += "var ";
-    nsig_array_context_regex += nsig_array_name;
+    nsig_array_context_regex += &nsig_array_name.replace("$", "\\$");
     nsig_array_context_regex += "\\s*=\\s*\\[(.+?)][;,]";
 
     let nsig_array_context = match Regex::new(&nsig_array_context_regex) {
@@ -95,7 +95,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
     // Extract nsig function code
     let mut nsig_function_code_regex_str: String = String::new();
-    nsig_function_code_regex_str += nsig_function_name;
+    nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
     nsig_function_code_regex_str +=
         "=\\s*function([\\S\\s]*?\\}\\s*return [\\w$]+?\\.join\\(\"\"\\)\\s*\\};)";
 
