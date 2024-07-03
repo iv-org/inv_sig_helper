@@ -1,14 +1,10 @@
-use futures::{Sink, SinkExt, Stream, StreamExt};
+use futures::SinkExt;
 use rquickjs::{async_with, AsyncContext, AsyncRuntime};
 use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism};
-use tokio::{io::AsyncWriteExt, runtime::Handle, sync::Mutex, task::block_in_place};
+use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
 
-use crate::{
-    consts::NSIG_FUNCTION_NAME,
-    opcode::OpcodeResponse,
-    player::{fetch_update, FetchUpdateStatus},
-};
+use crate::{consts::NSIG_FUNCTION_NAME, opcode::OpcodeResponse, player::fetch_update};
 
 pub enum JobOpcode {
     ForceUpdate,
@@ -128,7 +124,7 @@ pub async fn process_fetch_update<W>(
     let status = fetch_update(global_state).await;
 
     let mut writer = cloned_writer.lock().await;
-    writer
+    let _ = writer
         .send(OpcodeResponse {
             opcode: JobOpcode::ForceUpdate,
             request_id,
@@ -172,7 +168,7 @@ pub async fn process_decrypt_n_signature<W>(
                     }
                     println!("Code: {}", player_info.nsig_function_code.clone());
                     writer = cloned_writer.lock().await;
-                    writer.send(OpcodeResponse {
+                    let _ = writer.send(OpcodeResponse {
                         opcode: JobOpcode::DecryptNSignature,
                         request_id,
                         update_status: Ok(Default::default()),
@@ -204,7 +200,7 @@ pub async fn process_decrypt_n_signature<W>(
                 }
                 println!("Code: {}", call_string.clone());
                 writer = cloned_writer.lock().await;
-                writer.send(OpcodeResponse {
+                let _ = writer.send(OpcodeResponse {
                     opcode: JobOpcode::DecryptNSignature,
                     request_id,
                     update_status: Ok(Default::default()),
@@ -219,7 +215,7 @@ pub async fn process_decrypt_n_signature<W>(
 
         writer = cloned_writer.lock().await;
 
-        writer.send(OpcodeResponse {
+        let _ = writer.send(OpcodeResponse {
             opcode: JobOpcode::DecryptNSignature,
             request_id,
             update_status: Ok(Default::default()),
@@ -262,7 +258,7 @@ pub async fn process_decrypt_signature<W>(
                     }
                     println!("Code: {}", player_info.sig_function_code.clone());
                     writer = cloned_writer.lock().await;
-                    writer.send(OpcodeResponse {
+                    let _ = writer.send(OpcodeResponse {
                         opcode: JobOpcode::DecryptSignature,
                         request_id,
                         update_status: Ok(Default::default()),
@@ -297,7 +293,7 @@ pub async fn process_decrypt_signature<W>(
                 }
                 println!("Code: {}", call_string.clone());
                 writer = cloned_writer.lock().await;
-                writer.send(OpcodeResponse {
+                let _ = writer.send(OpcodeResponse {
                     opcode: JobOpcode::DecryptSignature,
                     request_id,
                     update_status: Ok(Default::default()),
@@ -312,7 +308,7 @@ pub async fn process_decrypt_signature<W>(
 
         writer = cloned_writer.lock().await;
 
-        writer.send(OpcodeResponse {
+        let _ = writer.send(OpcodeResponse {
             opcode: JobOpcode::DecryptSignature,
             request_id,
             update_status: Ok(Default::default()),
@@ -339,7 +335,7 @@ pub async fn process_get_signature_timestamp<W>(
     let timestamp = player_info.signature_timestamp;
 
     let mut writer = cloned_writer.lock().await;
-    writer
+    let _ = writer
         .send(OpcodeResponse {
             opcode: JobOpcode::GetSignatureTimestamp,
             request_id,
@@ -368,7 +364,7 @@ pub async fn process_player_status<W>(
 
     let mut writer = cloned_writer.lock().await;
 
-    writer
+    let _ = writer
         .send(OpcodeResponse {
             opcode: JobOpcode::PlayerStatus,
             request_id,
