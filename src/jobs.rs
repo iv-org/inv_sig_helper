@@ -170,6 +170,7 @@ pub async fn process_decrypt_n_signature<W>(
                     } else {
                         println!("JavaScript interpreter error (nsig code): {}", n);
                     }
+                    println!("Code: {}", player_info.nsig_function_code.clone());
                     writer = cloned_writer.lock().await;
                     writer.send(OpcodeResponse {
                         opcode: JobOpcode::DecryptNSignature,
@@ -177,8 +178,8 @@ pub async fn process_decrypt_n_signature<W>(
                         update_status: Ok(Default::default()),
                         signature: String::new(),
                         signature_timestamp: Default::default(),
-            has_player: Default::default(),
-            player_id: Default::default(),
+                        has_player: Default::default(),
+                        player_id: Default::default(),
                     }).await;
                     return;
                 }
@@ -193,7 +194,7 @@ pub async fn process_decrypt_n_signature<W>(
         call_string += &sig.replace("\"", "\\\"");
         call_string += "\")";
 
-        let decrypted_string = match ctx.eval::<String,String>(call_string) {
+        let decrypted_string = match ctx.eval::<String,String>(call_string.clone()) {
             Ok(x) => x,
             Err(n) => {
                 if n.is_exception() {
@@ -201,6 +202,7 @@ pub async fn process_decrypt_n_signature<W>(
                 } else {
                     println!("JavaScript interpreter error (nsig code): {}", n);
                 }
+                println!("Code: {}", call_string.clone());
                 writer = cloned_writer.lock().await;
                 writer.send(OpcodeResponse {
                     opcode: JobOpcode::DecryptNSignature,
@@ -208,8 +210,8 @@ pub async fn process_decrypt_n_signature<W>(
                     update_status: Ok(Default::default()),
                     signature: String::new(),
                     signature_timestamp: Default::default(),
-            has_player: Default::default(),
-            player_id: Default::default(),
+                    has_player: Default::default(),
+                    player_id: Default::default(),
                 }).await;
                 return;
             }
@@ -258,6 +260,7 @@ pub async fn process_decrypt_signature<W>(
                     } else {
                         println!("JavaScript interpreter error (sig code): {}", n);
                     }
+                    println!("Code: {}", player_info.sig_function_code.clone());
                     writer = cloned_writer.lock().await;
                     writer.send(OpcodeResponse {
                         opcode: JobOpcode::DecryptSignature,
@@ -265,8 +268,8 @@ pub async fn process_decrypt_signature<W>(
                         update_status: Ok(Default::default()),
                         signature: String::new(),
                         signature_timestamp: Default::default(),
-            has_player: Default::default(),
-            player_id: Default::default(),
+                        has_player: Default::default(),
+                        player_id: Default::default(),
                     }).await;
                     return;
                 }
@@ -284,7 +287,7 @@ pub async fn process_decrypt_signature<W>(
 
         drop(player_info);
 
-        let decrypted_string = match ctx.eval::<String,String>(call_string) {
+        let decrypted_string = match ctx.eval::<String,String>(call_string.clone()) {
             Ok(x) => x,
             Err(n) => {
                 if n.is_exception() {
@@ -292,6 +295,7 @@ pub async fn process_decrypt_signature<W>(
                 } else {
                     println!("JavaScript interpreter error (sig code): {}", n);
                 }
+                println!("Code: {}", call_string.clone());
                 writer = cloned_writer.lock().await;
                 writer.send(OpcodeResponse {
                     opcode: JobOpcode::DecryptSignature,
@@ -299,8 +303,8 @@ pub async fn process_decrypt_signature<W>(
                     update_status: Ok(Default::default()),
                     signature: String::new(),
                     signature_timestamp: Default::default(),
-            has_player: Default::default(),
-            player_id: Default::default(),
+                    has_player: Default::default(),
+                    player_id: Default::default(),
                 }).await;
                 return;
             }

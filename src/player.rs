@@ -157,6 +157,8 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     sig_code += helper_object_body;
     sig_code += sig_function_body;
 
+    println!("{}", sig_code);
+
     // Get signature timestamp
     let signature_timestamp: u64 = REGEX_SIGNATURE_TIMESTAMP
         .captures(&player_javascript)
