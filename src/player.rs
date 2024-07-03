@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use regex::Regex;
 
@@ -154,6 +154,10 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         .as_str();
 
     let mut sig_code = String::new();
+    sig_code += "var ";
+    sig_code += sig_function_name;
+    sig_code += ";";
+
     sig_code += helper_object_body;
     sig_code += sig_function_body;
 
