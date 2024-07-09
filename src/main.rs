@@ -8,18 +8,13 @@ use consts::DEFAULT_SOCK_PATH;
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
 use opcode::OpcodeDecoder;
 use player::fetch_update;
-use std::{env::args, future, io::Error, sync::Arc};
+use std::{env::args, sync::Arc};
 use tokio::{
     fs::remove_file,
-    io::{
-        self, AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, BufReader,
-        BufWriter, Interest, Ready,
-    },
-    net::{TcpListener, UnixListener, UnixStream},
+    net::{UnixListener, UnixStream},
     sync::Mutex,
-    task::{futures, spawn_blocking},
 };
-use tokio_util::codec::{Decoder, Framed, FramedRead, FramedWrite};
+use tokio_util::codec::Framed;
 
 use crate::jobs::{
     process_decrypt_signature, process_get_signature_timestamp, process_player_status,
