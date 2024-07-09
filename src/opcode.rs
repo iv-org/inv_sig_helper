@@ -60,7 +60,7 @@ impl Decoder for OpcodeDecoder {
                     return Ok(None);
                 }
 
-                let sig_size: u16 = u16::from_be_bytes(src[5..6].try_into().unwrap());
+                let sig_size: u16 = ((src[5] as u16) << 8) | src[6] as u16;
 
                 if (usize::from(sig_size) + 7) > src.len() {
                     return Ok(None);
