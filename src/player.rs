@@ -60,9 +60,9 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     };
 
     let nsig_function_array = NSIG_FUNCTION_ARRAY.captures(&player_javascript).unwrap();
-    let nsig_array_name = nsig_function_array.get(1).unwrap().as_str();
+    let nsig_array_name = nsig_function_array.name("nfunc").unwrap().as_str();
     let nsig_array_value = nsig_function_array
-        .get(2)
+        .name("idx")
         .unwrap()
         .as_str()
         .parse::<usize>()
@@ -97,7 +97,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     let mut nsig_function_code_regex_str: String = String::new();
     nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
     nsig_function_code_regex_str +=
-        "=\\s*function([\\S\\s]*?\\}\\s*return [\\w$]+?\\.join\\(\"\"\\)\\s*\\};)";
+        "=\\s*function([\\S\\s]*?\\}\\s*return [\\W\\w$]+?\\.call\\([\\w$]+?,\"\"\\)\\s*\\};)";
 
     let nsig_function_code_regex = Regex::new(&nsig_function_code_regex_str).unwrap();
 

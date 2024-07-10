@@ -6,7 +6,7 @@ pub static TEST_YOUTUBE_VIDEO: &str = "https://www.youtube.com/watch?v=jNQXAC9IV
 
 pub static REGEX_PLAYER_ID: &Lazy<Regex> = regex!("\\/s\\/player\\/([0-9a-f]{8})");
 pub static NSIG_FUNCTION_ARRAY: &Lazy<Regex> = regex!(
-    "b=String\\.fromCharCode\\(110\\),c=a\\.get\\(b\\)\\)&&\\(c=([a-zA-Z0-9$_]+)\\[([0-9]+)\\]"
+    r#"(?x)(?:\.get\("n"\)\)&&\(b=|b=String\.fromCharCode\(110\),c=a\.get\(b\)\)&&\(c=)(?P<nfunc>[a-zA-Z0-9$]+)(?:\[(?P<idx>\d+)\])?\([a-zA-Z0-9]\)"#
 );
 pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[=:](\\d+)");
 
