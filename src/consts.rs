@@ -2,7 +2,7 @@ use lazy_regex::{regex, Lazy};
 use regex::Regex;
 
 pub static DEFAULT_SOCK_PATH: &str = "/tmp/inv_sig_helper.sock";
-pub static DEFAULT_TCP_URL: &str = "0.0.0.0:12999";
+pub static DEFAULT_TCP_URL: &str = "127.0.0.1:12999";
 
 pub static TEST_YOUTUBE_VIDEO: &str = "https://www.youtube.com/watch?v=jNQXAC9IVRw";
 
