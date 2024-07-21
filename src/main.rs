@@ -4,14 +4,15 @@ mod opcode;
 mod player;
 
 use ::futures::StreamExt;
-use consts::DEFAULT_SOCK_PATH;
+use consts::{DEFAULT_SOCK_PATH, DEFAULT_TCP_URL};
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
 use opcode::OpcodeDecoder;
 use player::fetch_update;
 use std::{env::args, sync::Arc};
 use tokio::{
     fs::remove_file,
-    net::{UnixListener, UnixStream},
+    io::{AsyncReadExt, AsyncWrite},
+    net::{TcpListener, UnixListener},
     sync::Mutex,
 };
 use tokio_util::codec::Framed;
@@ -21,30 +22,25 @@ use crate::jobs::{
     process_player_update_timestamp,
 };
 
-macro_rules! break_fail {
-    ($res:expr) => {
-        match $res {
-            Ok(value) => value,
-            Err(e) => {
-                println!("An error occurred while parsing the current request: {}", e);
-                break;
+macro_rules! loop_main {
+    ($i:ident, $s:ident) => {
+        println!("Fetching player");
+        match fetch_update($s.clone()).await {
+            Ok(()) => println!("Successfully fetched player"),
+            Err(x) => {
+                println!("Error occured while trying to fetch the player: {:?}", x);
             }
+        }
+        loop {
+            let (socket, _addr) = $i.accept().await.unwrap();
+
+            let cloned_state = $s.clone();
+            tokio::spawn(async move {
+                process_socket(cloned_state, socket).await;
+            });
         }
     };
 }
-
-macro_rules! eof_fail {
-    ($res:expr, $stream:ident) => {
-        match $res {
-            Ok(value) => value,
-            Err(e) => {
-                println!("An error occurred while parsing the current request: {}", e);
-                break;
-            }
-        }
-    };
-}
-
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = args().collect();
@@ -56,37 +52,40 @@ async fn main() {
     // have to please rust
     let state: Arc<GlobalState> = Arc::new(GlobalState::new());
 
-    let socket: UnixListener = match UnixListener::bind(socket_url) {
-        Ok(x) => x,
-        Err(x) => {
-            if x.kind() == std::io::ErrorKind::AddrInUse {
-                remove_file(socket_url).await;
-                UnixListener::bind(socket_url).unwrap()
-            } else {
+    if socket_url == "--tcp" {
+        let socket_tcp_url: &str = match args.get(2) {
+            Some(stringref) => stringref,
+            None => DEFAULT_TCP_URL,
+        };
+        let tcp_socket = match TcpListener::bind(socket_tcp_url).await {
+            Ok(x) => x,
+            Err(x) => {
                 println!("Error occurred while trying to bind: {}", x);
                 return;
             }
-        }
-    };
-
-    println!("Fetching player");
-    match fetch_update(state.clone()).await {
-        Ok(()) => println!("Successfully fetched player"),
-        Err(x) => {
-            println!("Error occured while trying to fetch the player: {:?}", x);
-        }
-    }
-    loop {
-        let (socket, _addr) = socket.accept().await.unwrap();
-
-        let cloned_state = state.clone();
-        tokio::spawn(async move {
-            process_socket(cloned_state, socket).await;
-        });
+        };
+        loop_main!(tcp_socket, state);
+    } else {
+        let unix_socket = match UnixListener::bind(socket_url) {
+            Ok(x) => x,
+            Err(x) => {
+                if x.kind() == std::io::ErrorKind::AddrInUse {
+                    remove_file(socket_url).await;
+                    UnixListener::bind(socket_url).unwrap()
+                } else {
+                    println!("Error occurred while trying to bind: {}", x);
+                    return;
+                }
+            }
+        };
+        loop_main!(unix_socket, state);
     }
 }
 
-async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
+async fn process_socket<W>(state: Arc<GlobalState>, socket: W)
+where
+    W: AsyncReadExt + Send + AsyncWrite + 'static,
+{
     let decoder = OpcodeDecoder {};
     let str = Framed::new(socket, decoder);
 
