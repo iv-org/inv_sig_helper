@@ -84,3 +84,14 @@ No additional data required
 |has_player| 1            | If the server has a player, this variable will be `0xFF`. or else, it will be `0x00`|
 |player_id | 4            | The server's current player ID. If the server has no player, this will always be `0x00000000`|
 
+### `PLAYER_UPDATE_TIMESTAMP` (0x05)
+Get the time of the last player update, The time is represented as seconds since the last update
+
+#### Request
+No additional data required
+
+#### Response
+
+| Name     | Size (bytes) | Description |
+|----------|--------------|-------------|
+|timestamp | 8            | Seconds since the last player update |

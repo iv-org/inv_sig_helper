@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 
 use regex::Regex;
 
@@ -180,6 +180,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     current_player_info.sig_function_name = sig_function_name.to_string();
     current_player_info.signature_timestamp = signature_timestamp;
     current_player_info.has_player = 0xFF;
+    current_player_info.last_update = SystemTime::now();
 
     Ok(())
 }

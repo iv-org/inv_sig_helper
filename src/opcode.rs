@@ -27,8 +27,23 @@ pub struct OpcodeResponse {
 
     pub has_player: u8,
     pub player_id: u32,
+    pub last_player_update: u64,
 }
 
+impl Default for OpcodeResponse {
+    fn default() -> Self {
+        OpcodeResponse {
+            opcode: JobOpcode::ForceUpdate,
+            request_id: 0,
+            update_status: Ok(()),
+            signature: String::new(),
+            signature_timestamp: 0,
+            has_player: 0,
+            player_id: 0,
+            last_player_update: 0,
+        }
+    }
+}
 impl Decoder for OpcodeDecoder {
     type Item = Opcode;
     type Error = std::io::Error;
@@ -47,7 +62,10 @@ impl Decoder for OpcodeDecoder {
         let request_id: u32 = u32::from_be_bytes(src[1..5].try_into().unwrap());
 
         match opcode {
-            JobOpcode::ForceUpdate | JobOpcode::GetSignatureTimestamp | JobOpcode::PlayerStatus => {
+            JobOpcode::ForceUpdate
+            | JobOpcode::GetSignatureTimestamp
+            | JobOpcode::PlayerStatus
+            | JobOpcode::PlayerUpdateTimestamp => {
                 src.advance(5);
                 Ok(Some(Opcode {
                     opcode,
@@ -122,6 +140,10 @@ impl Encoder<OpcodeResponse> for OpcodeDecoder {
                 dst.put_u32(5);
                 dst.put_u8(item.has_player);
                 dst.put_u32(item.player_id);
+            }
+            JobOpcode::PlayerUpdateTimestamp => {
+                dst.put_u32(8);
+                dst.put_u64(item.last_player_update);
             }
             _ => {}
         }

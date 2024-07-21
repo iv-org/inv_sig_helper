@@ -18,6 +18,7 @@ use tokio_util::codec::Framed;
 
 use crate::jobs::{
     process_decrypt_signature, process_get_signature_timestamp, process_player_status,
+    process_player_update_timestamp,
 };
 
 macro_rules! break_fail {
@@ -150,6 +151,18 @@ async fn process_socket(state: Arc<GlobalState>, socket: UnixStream) {
                         tokio::spawn(async move {
                             process_player_status(cloned_state, cloned_sink, opcode.request_id)
                                 .await;
+                        });
+                    }
+                    JobOpcode::PlayerUpdateTimestamp => {
+                        let cloned_state = state.clone();
+                        let cloned_sink = arc_sink.clone();
+                        tokio::spawn(async move {
+                            process_player_update_timestamp(
+                                cloned_state,
+                                cloned_sink,
+                                opcode.request_id,
+                            )
+                            .await;
                         });
                     }
                     _ => {
