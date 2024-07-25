@@ -4,8 +4,8 @@ use regex::Regex;
 
 use crate::{
     consts::{
-        NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_NAME, REGEX_HELPER_OBJ_NAME, REGEX_PLAYER_ID,
-        REGEX_SIGNATURE_FUNCTION, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
+        NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_ENDINGS, NSIG_FUNCTION_NAME, REGEX_HELPER_OBJ_NAME,
+        REGEX_PLAYER_ID, REGEX_SIGNATURE_FUNCTION, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
     },
     jobs::GlobalState,
 };
@@ -93,23 +93,38 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
     let nsig_function_name = array_values.get(nsig_array_value).unwrap();
 
-    // Extract nsig function code
-    let mut nsig_function_code_regex_str: String = String::new();
-    nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
-    nsig_function_code_regex_str +=
-        "=\\s*function([\\S\\s]*?\\}\\s*return [\\W\\w$]+?\\.call\\([\\w$]+?,\"\"\\)\\s*\\};)";
-
-    let nsig_function_code_regex = Regex::new(&nsig_function_code_regex_str).unwrap();
-
     let mut nsig_function_code = String::new();
     nsig_function_code += "function ";
     nsig_function_code += NSIG_FUNCTION_NAME;
-    nsig_function_code += nsig_function_code_regex
-        .captures(&player_javascript)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
+
+    let mut extracted = false;
+    // Extract nsig function code
+    for (index, ending) in NSIG_FUNCTION_ENDINGS.iter().enumerate() {
+        let mut nsig_function_code_regex_str: String = String::new();
+        nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
+        nsig_function_code_regex_str += ending;
+
+        let nsig_function_code_regex = Regex::new(&nsig_function_code_regex_str).unwrap();
+        nsig_function_code += match nsig_function_code_regex.captures(&player_javascript) {
+            None => {
+                println!("nsig function ending did not work: {}", ending);
+                if index == NSIG_FUNCTION_ENDINGS.len() {
+                    println!("!!ERROR!! nsig function unable to be extracted");
+                    return Err(FetchUpdateStatus::NsigRegexCompileFailed);
+                }
+
+                continue;
+            }
+            Some(i) => {
+                extracted = true;
+                i.get(1).unwrap().as_str()
+            }
+        };
+
+        if extracted {
+            break;
+        }
+    }
 
     // Extract signature function name
     let sig_function_name = REGEX_SIGNATURE_FUNCTION
