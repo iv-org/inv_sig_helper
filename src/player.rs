@@ -4,7 +4,7 @@ use regex::Regex;
 
 use crate::{
     consts::{
-        NSIG_FUNCTION_ARRAY, NSIG_FUNCTION_ENDINGS, NSIG_FUNCTION_NAME, REGEX_HELPER_OBJ_NAME,
+        NSIG_FUNCTION_ARRAYS, NSIG_FUNCTION_ENDINGS, NSIG_FUNCTION_NAME, REGEX_HELPER_OBJ_NAME,
         REGEX_PLAYER_ID, REGEX_SIGNATURE_FUNCTION, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
     },
     jobs::GlobalState,
@@ -51,6 +51,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
+    println!("Fetching player JS URL: {}", player_js_url);
     let player_javascript = match reqwest::get(player_js_url).await {
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
@@ -59,7 +60,27 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         }
     };
 
-    let nsig_function_array = NSIG_FUNCTION_ARRAY.captures(&player_javascript).unwrap();
+    let mut nsig_function_array_opt = None;
+    // Extract nsig function array code
+    for (index, nsig_function_array_str) in NSIG_FUNCTION_ARRAYS.iter().enumerate() {
+        let nsig_function_array_regex = Regex::new(&nsig_function_array_str).unwrap();
+        nsig_function_array_opt = match nsig_function_array_regex.captures(&player_javascript) {
+            None => {
+                println!("nsig function array did not work: {}", nsig_function_array_str);
+                if index == NSIG_FUNCTION_ARRAYS.len() {
+                    println!("!!ERROR!! nsig function array unable to be extracted");
+                    return Err(FetchUpdateStatus::NsigRegexCompileFailed);
+                }
+                continue;
+            }
+            Some(i) => {
+                Some(i)
+            }
+        };
+        break;
+    }
+
+    let nsig_function_array = nsig_function_array_opt.unwrap();
     let nsig_array_name = nsig_function_array.name("nfunc").unwrap().as_str();
     let nsig_array_value = nsig_function_array
         .name("idx")
@@ -97,7 +118,6 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     nsig_function_code += "function ";
     nsig_function_code += NSIG_FUNCTION_NAME;
 
-    let mut extracted = false;
     // Extract nsig function code
     for (index, ending) in NSIG_FUNCTION_ENDINGS.iter().enumerate() {
         let mut nsig_function_code_regex_str: String = String::new();
@@ -116,14 +136,11 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
                 continue;
             }
             Some(i) => {
-                extracted = true;
                 i.get(1).unwrap().as_str()
             }
         };
-
-        if extracted {
-            break;
-        }
+        //println!("got nsig fn code: {}", nsig_function_code);
+        break;
     }
 
     // Extract signature function name
@@ -176,7 +193,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     sig_code += helper_object_body;
     sig_code += sig_function_body;
 
-    println!("{}", sig_code);
+    println!("sig code: {}", sig_code);
 
     // Get signature timestamp
     let signature_timestamp: u64 = REGEX_SIGNATURE_TIMESTAMP
