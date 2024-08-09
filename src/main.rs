@@ -65,6 +65,13 @@ async fn main() {
             }
         };
         loop_main!(tcp_socket, state);
+    } else if socket_url == "--test" {
+        // TODO: test the API aswell, this only tests the player script extractor
+        println!("Fetching player");
+        match fetch_update(state.clone()).await {
+            Ok(()) => std::process::exit(0),
+            Err(_x) => std::process::exit(-1),
+        }
     } else {
         let unix_socket = match UnixListener::bind(socket_url) {
             Ok(x) => x,
