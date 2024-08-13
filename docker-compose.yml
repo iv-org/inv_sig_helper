@@ -1,3 +1,4 @@
+version: "3"
 services:
   inv_sig_helper:
     build: .
