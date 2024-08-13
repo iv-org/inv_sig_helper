@@ -40,4 +40,4 @@ EXPOSE 12999
 ENTRYPOINT ["/app/inv_sig_helper_rust"]
 
 # Set default arguments in CMD
-CMD ["--tcp", "0.0.0.0:12999"]
+CMD ["--tcp", "127.0.0.1:12999"]
