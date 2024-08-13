@@ -11,3 +11,6 @@ services:
     cap_drop:
       - ALL
     read_only: true
+    user: 10001:10001
+    security_opt:
+      - no-new-privileges:true

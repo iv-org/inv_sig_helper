@@ -24,18 +24,29 @@ RUN RUST_TARGET=$(rustc -vV | sed -n 's/host: //p') && \
     rustup target add $RUST_TARGET && \
     RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target $RUST_TARGET
 
-# Create a new stage for a smaller final image
+# Stage for creating the non-privileged user
+FROM alpine:3.20 AS user-stage
+
+RUN adduser -u 10001 -S appuser
+
+# Stage for a smaller final image
 FROM scratch
 
 # Copy necessary files from the builder stage, using the correct architecture path
 COPY --from=builder /usr/src/app/target/*/release/inv_sig_helper_rust /app/inv_sig_helper_rust
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
+# Copy passwd file for the non-privileged user from the user-stage
+COPY --from=user-stage /etc/passwd /etc/passwd
+
 # Set the working directory
 WORKDIR /app
 
 # Expose port 12999
 EXPOSE 12999
+
+# Switch to non-privileged user
+USER appuser
 
 # Set the entrypoint to the binary name
 ENTRYPOINT ["/app/inv_sig_helper_rust"]
