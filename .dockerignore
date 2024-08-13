@@ -6,7 +6,7 @@
 .gitignore
 
 # Docker Compose file
-compose.yaml
+docker-compose.yml
 
 # Documentation
 README.md
