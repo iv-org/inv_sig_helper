@@ -1,6 +1,7 @@
 services:
   inv_sig_helper:
     build: .
+    command: ["--tcp", "127.0.0.1:12999"]
     ports:
       - 12999:12999
     environment:
@@ -11,4 +12,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
