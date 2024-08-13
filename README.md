@@ -66,7 +66,7 @@ A Dockerfile is included for containerized deployment.
 2. Run the container:
 
    ```
-   docker run -p 12999:12999 inv_sig_helper
+   docker run -p 127.0.0.1:12999:12999 inv_sig_helper
    ```
 
    Or use Docker Compose:
