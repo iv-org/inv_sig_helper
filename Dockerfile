@@ -19,15 +19,26 @@ ENV OPENSSL_DIR=/usr
 # Copy the current directory contents into the container
 COPY . .
 
-# Build the application
-RUN rustup target add x86_64-unknown-linux-musl
-RUN RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-musl
+# Set up build arguments for architecture detection
+ARG TARGETARCH
+
+# Set the Rust target based on the detected architecture
+RUN case "$TARGETARCH" in \
+        "amd64")  echo "x86_64-unknown-linux-musl" > /tmp/target ;; \
+        "arm64")  echo "aarch64-unknown-linux-musl" > /tmp/target ;; \
+        *)        echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
+    esac
+
+# Add the target to rustup and build the application
+RUN RUST_TARGET=$(cat /tmp/target) && \
+    rustup target add $RUST_TARGET && \
+    RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target $RUST_TARGET
 
 # Create a new stage for a smaller final image
 FROM scratch
 
-# Copy necessary files from the builder stage
-COPY --from=builder /usr/src/app/target/x86_64-unknown-linux-musl/release/inv_sig_helper_rust /app/inv_sig_helper_rust
+# Copy necessary files from the builder stage, using the correct architecture path
+COPY --from=builder /usr/src/app/target/*/release/inv_sig_helper_rust /app/inv_sig_helper_rust
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Set the working directory
