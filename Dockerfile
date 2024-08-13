@@ -1,40 +1,27 @@
-# Use the official Rust image as a parent image
-FROM rust:1.80 AS builder
+# Use the official Alpine-based Rust image as a parent image
+FROM rust:1.80-alpine AS builder
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    musl-tools \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev \
+    openssl-libs-static \
+    pkgconfig \
+    patch
 
-# Install OpenSSL for musl
-ENV OPENSSL_VERSION=3.0.9
-RUN wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz \
-    && tar zxvf openssl-${OPENSSL_VERSION}.tar.gz \
-    && cd openssl-${OPENSSL_VERSION} \
-    && ./Configure no-shared no-async --prefix=/usr/local/musl --openssldir=/usr/local/musl linux-x86_64 \
-    && make -j$(nproc) \
-    && make install_sw \
-    && cd .. \
-    && rm -rf openssl-${OPENSSL_VERSION}*
-
-# Set OpenSSL directory for musl
-ENV OPENSSL_DIR=/usr/local/musl
-ENV OPENSSL_INCLUDE_DIR=/usr/local/musl/include
-ENV OPENSSL_LIB_DIR=/usr/local/musl/lib64
+# Set environment variables for static linking
+ENV OPENSSL_STATIC=yes
+ENV OPENSSL_DIR=/usr
 
 # Copy the current directory contents into the container
 COPY . .
 
 # Build the application
 RUN rustup target add x86_64-unknown-linux-musl
-RUN PKG_CONFIG_ALLOW_CROSS=1 \
-    RUSTFLAGS="-C linker=x86_64-linux-gnu-gcc" \
-    cargo build --release --target x86_64-unknown-linux-musl
+RUN RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-musl
 
 # Create a new stage for a smaller final image
 FROM scratch
