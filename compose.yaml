@@ -3,7 +3,7 @@ services:
     build: .
     command: ["--tcp", "127.0.0.1:12999"]
     ports:
-      - 12999:12999
+      - 127.0.0.1:12999:12999
     environment:
       - RUST_LOG=info
     restart: unless-stopped
