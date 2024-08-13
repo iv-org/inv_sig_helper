@@ -19,18 +19,8 @@ ENV OPENSSL_DIR=/usr
 # Copy the current directory contents into the container
 COPY . .
 
-# Set up build arguments for architecture detection
-ARG TARGETARCH
-
-# Set the Rust target based on the detected architecture
-RUN case "$TARGETARCH" in \
-        "amd64")  echo "x86_64-unknown-linux-musl" > /tmp/target ;; \
-        "arm64")  echo "aarch64-unknown-linux-musl" > /tmp/target ;; \
-        *)        echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
-    esac
-
-# Add the target to rustup and build the application
-RUN RUST_TARGET=$(cat /tmp/target) && \
+# Determine the target architecture and build the application
+RUN RUST_TARGET=$(rustc -vV | sed -n 's/host: //p') && \
     rustup target add $RUST_TARGET && \
     RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target $RUST_TARGET
 
