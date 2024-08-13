@@ -12,20 +12,20 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install OpenSSL for musl
-ENV OPENSSL_VERSION=1.1.1u
+ENV OPENSSL_VERSION=3.0.9
 RUN wget https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz \
     && tar zxvf openssl-${OPENSSL_VERSION}.tar.gz \
     && cd openssl-${OPENSSL_VERSION} \
     && ./Configure no-shared no-async --prefix=/usr/local/musl --openssldir=/usr/local/musl linux-x86_64 \
     && make -j$(nproc) \
-    && make install \
+    && make install_sw \
     && cd .. \
     && rm -rf openssl-${OPENSSL_VERSION}*
 
 # Set OpenSSL directory for musl
 ENV OPENSSL_DIR=/usr/local/musl
 ENV OPENSSL_INCLUDE_DIR=/usr/local/musl/include
-ENV OPENSSL_LIB_DIR=/usr/local/musl/lib
+ENV OPENSSL_LIB_DIR=/usr/local/musl/lib64
 
 # Copy the current directory contents into the container
 COPY . .
