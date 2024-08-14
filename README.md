@@ -1,8 +1,85 @@
-# Protocol Format
+# inv_sig_helper
+
+`inv_sig_helper` is a Rust service that decrypts YouTube signatures and manages player information. It offers a TCP/Unix socket interface for signature decryption and related operations.
+
+## Features
+
+- Decrypt YouTube `n` and `s` signatures
+- Fetch and update YouTube player data
+- Provide signature timestamps and player status
+- Efficient signature decryption with multi-threaded JavaScript execution
+
+## Building and Running
+
+### Prerequisites
+
+- Rust 1.77 or later
+- Cargo
+- Patch
+- openssl-devel
+
+### Building
+
+1. Clone the repository and navigate to the project directory:
+
+   ```
+   git clone https://github.com/iv-org/inv_sig_helper.git
+   cd inv_sig_helper
+   ```
+
+2. Build the project:
+
+   ```
+   cargo build --release
+   ```
+
+### Running
+
+The service can run in Unix socket mode (default) or TCP mode:
+
+1. Unix socket mode:
+
+   ```
+   ./target/release/inv_sig_helper_rust
+   ```
+
+   This creates a Unix socket at `/tmp/inv_sig_helper.sock`.
+
+2. TCP mode:
+
+   ```
+   ./target/release/inv_sig_helper_rust --tcp [IP:PORT]
+   ```
+
+   If no IP:PORT is given, it defaults to `127.0.0.1:12999`.
+
+## Docker
+
+A Dockerfile is included for containerized deployment.
+
+1. Build the image:
+
+   ```
+   docker build -t inv_sig_helper .
+   ```
+
+2. Run the container:
+
+   ```
+   docker run -p 127.0.0.1:12999:12999 inv_sig_helper
+   ```
+
+   Or use Docker Compose:
+
+   ```
+   docker compose up
+   ```
+
+## Protocol Format
 
 All data-types bigger than 1 byte are stored in network endian (big-endian) unless stated otherwise.
 
-## Request Base
+### Request Base
 | Name      | Size (bytes) | Description                          |
 |-----------|--------------|--------------------------------------|
 |opcode     | 1            | The operation code to perform, A list of operations currently supported (and their data) can be found in the **Operations** chapter |
@@ -10,7 +87,7 @@ All data-types bigger than 1 byte are stored in network endian (big-endian) unle
 
 The data afterwards depends on the supplied opcode, Please consult the **Operations** chapter for more information.
 
-## Response Base
+### Response Base
 | Name       | Size (bytes) | Description                           |
 |------------|--------------|---------------------------------------|
 |request_id  | 4            | The ID for the request that this response is meant for |
@@ -18,80 +95,84 @@ The data afterwards depends on the supplied opcode, Please consult the **Operati
 
 The data afterwards depends on the supplied opcode, Please consult the **Operations** chapter for more information.
 
-## Operations
-### `FORCE_UPDATE` (0x00)
+### Operations
+#### `FORCE_UPDATE` (0x00)
 Forces the server to re-fetch the YouTube player, and extract the necessary components from it (`nsig` function code, `sig` function code, signature timestamp).
 
-#### Request
+##### Request
 *No additional data required*
 
-#### Response
+##### Response
 | Name | Size (bytes) | Description |
 |------|--------------|-------------|
 |status| 2            | The status code of the request: `0xF44F` if successful, `0xFFFF` if no updating is required (YouTube's player ID is equal to the server's current player ID), `0x0000` if an error occurred |
 
-### `DECRYPT_N_SIGNATURE` (0x01)
+#### `DECRYPT_N_SIGNATURE` (0x01)
 Decrypt a provided `n` signature using the server's current `nsig` function code, and return the result (or an error).
 
-#### Request
+##### Request
 | Name | Size (bytes) | Description                         |
 |------|--------------|-------------------------------------|
 |size  | 2            | The size of the encrypted signature |
 |string| *`size`*     | The encrypted signature             |
 
-#### Response
+##### Response
 | Name | Size (bytes) | Description                                                      |
 |------|--------------|------------------------------------------------------------------|
 |size  | 2            | The size of the decrypted signature, `0x0000` if an error occurred |
 |string| *`size`*     | The decrypted signature                                          |
 
-### `DECRYPT_SIGNATURE` (0x02)
+#### `DECRYPT_SIGNATURE` (0x02)
 Decrypt a provided `s` signature using the server's current `sig` function code, and return the result (or an error).
 
-#### Request
+##### Request
 | Name | Size (bytes) | Description                         |
 |------|--------------|-------------------------------------|
 |size  | 2            | The size of the encrypted signature |
 |string| *`size`*     | The encrypted signature             |
 
-#### Response
+##### Response
 | Name | Size (bytes) | Description                                                      |
 |------|--------------|------------------------------------------------------------------|
 |size  | 2            | The size of the decrypted signature, `0x0000` if an error occurred |
 |string| *`size`*     | The decrypted signature                                          |
 
-### `GET_SIGNATURE_TIMESTAMP` (0x03)
+#### `GET_SIGNATURE_TIMESTAMP` (0x03)
 Get the signature timestamp from the server's current player, and return it in the form of a 64-bit integer. If there's no player, it will return 0 in the `timestamp` (Please check with `PLAYER_STATUS` if the server has a player)
 
-#### Request
+##### Request
 No additional data required
 
-#### Response
+##### Response
 | Name    | Size (bytes) | Description                                              |
 |---------|--------------|----------------------------------------------------------|
 |timestamp| 8            | The signature timestamp from the server's current player |
 
-### `PLAYER_STATUS` (0x04)
+#### `PLAYER_STATUS` (0x04)
 Get the server's information about the current player.
 
-#### Request
+##### Request
 No additional data required
 
-#### Response
+##### Response
 
 | Name     | Size (bytes) | Description |
 |----------|--------------|-------------|
 |has_player| 1            | If the server has a player, this variable will be `0xFF`. or else, it will be `0x00`|
 |player_id | 4            | The server's current player ID. If the server has no player, this will always be `0x00000000`|
 
-### `PLAYER_UPDATE_TIMESTAMP` (0x05)
+#### `PLAYER_UPDATE_TIMESTAMP` (0x05)
 Get the time of the last player update, The time is represented as seconds since the last update
 
-#### Request
+##### Request
 No additional data required
 
-#### Response
+##### Response
 
 | Name     | Size (bytes) | Description |
 |----------|--------------|-------------|
 |timestamp | 8            | Seconds since the last player update |
+
+## License
+
+This project is open source under the AGPL-3.0 license.

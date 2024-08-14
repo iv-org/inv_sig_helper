@@ -1,0 +1,13 @@
+# Rust build artifacts
+/target
+
+# Git files
+.git
+.gitignore
+
+# Docker Compose file
+docker-compose.yaml
+
+# Documentation
+README.md
+LICENSE
