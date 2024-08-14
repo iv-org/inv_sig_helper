@@ -1,13 +1,19 @@
-name: Rust
+name: Build and test inv_sig_helper
 
 on:
   push:
     branches: [ "master" ]
+    paths-ignore:
+      - 'LICENSE'
+      - 'README.md'
+      - 'docker-compose.yml'
   pull_request:
     branches: [ "master" ]
   schedule:
     # every 2 hours
     - cron: "0 */2 * * *"
+  workflow_dispatch:  # Allow manual triggering of the workflow
+  
 
 env:
   CARGO_TERM_COLOR: always
