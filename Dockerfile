@@ -1,31 +1,39 @@
-# Use the official Rust image as a parent image
-FROM rust:1.80 AS builder
+# Use the official Alpine-based Rust image as a parent image
+FROM rust:1.80-alpine AS builder
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
 # Install build dependencies
-RUN apt update && apt install -y \
-    libssl-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev \
+    openssl-libs-static \
+    pkgconfig \
+    patch
+
+# Set environment variables for static linking
+ENV OPENSSL_STATIC=yes
+ENV OPENSSL_DIR=/usr
 
 # Copy the current directory contents into the container
 COPY . .
 
-# Build the application
-RUN cargo build --release
+# Determine the target architecture and build the application
+RUN RUST_TARGET=$(rustc -vV | sed -n 's/host: //p') && \
+    rustup target add $RUST_TARGET && \
+    RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target $RUST_TARGET
 
 # Stage for creating the non-privileged user
-FROM debian:12.6-slim AS user-stage
+FROM alpine:3.20 AS user-stage
 
-RUN adduser --uid 10001 --system appuser
+RUN adduser -u 10001 -S appuser
 
 # Stage for a smaller final image
 FROM scratch
 
-# Copy necessary files from the builder stage
-COPY --from=builder /usr/src/app/target/release/inv_sig_helper_rust /app/inv_sig_helper_rust
+# Copy necessary files from the builder stage, using the correct architecture path
+COPY --from=builder /usr/src/app/target/*/release/inv_sig_helper_rust /app/inv_sig_helper_rust
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy passwd file for the non-privileged user from the user-stage
