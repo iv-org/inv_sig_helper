@@ -17,7 +17,7 @@ And an official Docker image is available at `quay.io/invidious/inv-sig-helper`:
 
 ### Production
 
-TODO: Follow the official documentation.
+Follow the official installation guide: https://github.com/iv-org/documentation/blob/master/docs/installation.md.
 
 ### Development
 
@@ -71,9 +71,9 @@ Or you can run it manually but not recommended since you won't lock down the con
 
 We recommend running sig_helper inside a locked down environment like an LXC container or a systemd service where only the strict necessary is allowed.
 
-No guide outside of Docker have been written for this but feel free to send your contribution.
+No example outside of Docker have been written for this but feel free to send your contribution.
 
-This services runs untrusted code directly from Google.
+This service runs untrusted code directly from Google.
 
 #### Instructions
 
