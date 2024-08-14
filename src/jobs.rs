@@ -150,7 +150,7 @@ pub async fn process_decrypt_n_signature<W>(
     let cloned_writer = stream.clone();
     let global_state = state.clone();
 
-    println!("Signature to be decrypted: {}", sig);
+    //println!("Signature to be decrypted: {}", sig);
     let interp = global_state.js_runtime_pool.acquire().await;
 
     let cloned_interp = interp.clone();

@@ -102,7 +102,7 @@ where
     while let Some(opcode_res) = stream.next().await {
         match opcode_res {
             Ok(opcode) => {
-                println!("Received job: {}", opcode.opcode);
+                //println!("Received job: {}", opcode.opcode);
 
                 match opcode.opcode {
                     JobOpcode::ForceUpdate => {
