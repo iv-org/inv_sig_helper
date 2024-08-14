@@ -9,7 +9,39 @@
 - Provide signature timestamps and player status
 - Efficient signature decryption with multi-threaded JavaScript execution
 
-## Building and Running
+## Run with Docker (recommended method)
+
+A Dockerfile is included for containerized deployment.
+
+And an official Docker image is available at `quay.io/invidious/inv-sig-helper`: https://quay.io/repository/invidious/inv-sig-helper
+
+### Production
+
+TODO: Follow the official documentation.
+
+### Development
+
+Run the project using docker compose:
+
+```
+docker compose up -d
+```
+
+Or you can run it manually but not recommended since you won't lock down the container from potential code execution from Google:
+
+1. Build the image:
+
+   ```
+   docker build -t inv_sig_helper .
+   ```
+
+2. Run the container:
+
+   ```
+   docker run -p 127.0.0.1:12999:12999 inv_sig_helper
+   ```
+
+## Building and Running without Docker
 
 ### Prerequisites
 
@@ -35,6 +67,16 @@
 
 ### Running
 
+#### Warning
+
+We recommend running sig_helper inside a locked down environment like an LXC container or a systemd service where only the strict necessary is allowed.
+
+No guide outside of Docker have been written for this but feel free to send your contribution.
+
+This services runs untrusted code directly from Google.
+
+#### Instructions
+
 The service can run in Unix socket mode (default) or TCP mode:
 
 1. Unix socket mode:
@@ -53,27 +95,6 @@ The service can run in Unix socket mode (default) or TCP mode:
 
    If no IP:PORT is given, it defaults to `127.0.0.1:12999`.
 
-## Docker
-
-A Dockerfile is included for containerized deployment.
-
-1. Build the image:
-
-   ```
-   docker build -t inv_sig_helper .
-   ```
-
-2. Run the container:
-
-   ```
-   docker run -p 127.0.0.1:12999:12999 inv_sig_helper
-   ```
-
-   Or use Docker Compose:
-
-   ```
-   docker compose up
-   ```
 
 ## Protocol Format
 
