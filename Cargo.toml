@@ -15,7 +15,8 @@ tub = "0.3.7"
 tokio-util = { version = "0.7.10", features=["futures-io", "futures-util", "codec"]}
 futures = "0.3.30"
 
-# Compile as a statically linked binary for scratch image support
+# Compilation optimizations for release builds
+# Increases compile time but typically produces a faster and smaller binary. Suitable for final releases but not for debug builds.
 [profile.release]
 lto = true
 opt-level = 3
