@@ -1,8 +1,10 @@
 version: "3"
 services:
   inv_sig_helper:
-    # build: .
-    image: quay.io/invidious/inv-sig-helper:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # image: quay.io/invidious/inv-sig-helper:latest
     command: ["--tcp", "127.0.0.1:12999"]
     ports:
       - 127.0.0.1:12999:12999
