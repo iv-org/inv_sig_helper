@@ -39,12 +39,13 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
     let mut current_player_info = global_state.player_info.lock().await;
     let current_player_id = current_player_info.player_id;
-    // release the mutex for other tasks
-    drop(current_player_info);
 
     if player_id == current_player_id {
+        current_player_info.last_update = SystemTime::now();
         return Err(FetchUpdateStatus::PlayerAlreadyUpdated);
     }
+    // release the mutex for other tasks
+    drop(current_player_info);
 
     // Download the player script
     let player_js_url: String = format!(
