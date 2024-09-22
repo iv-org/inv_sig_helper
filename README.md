@@ -69,11 +69,9 @@ Or you can run it manually but not recommended since you won't lock down the con
 
 #### Warning
 
-We recommend running sig_helper inside a locked down environment like an LXC container or a systemd service where only the strict necessary is allowed.
-
-No example outside of Docker have been written for this but feel free to send your contribution.
-
 This service runs untrusted code directly from Google.
+
+We recommend running sig_helper inside a locked down environment like an LXC container or a systemd service where only the strict necessary is allowed. An examplary systemd service file is provided in `inv_sig_helper.service` which creates a socket in `/home/invidious/tmp/inv_sig_helper.sock`.
 
 #### Instructions
 
