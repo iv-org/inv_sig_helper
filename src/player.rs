@@ -1,5 +1,5 @@
 use std::{sync::Arc, time::SystemTime};
-
+use log::{debug, error, info, warn};
 use regex::Regex;
 
 use crate::{
@@ -25,7 +25,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     let response = match reqwest::get(TEST_YOUTUBE_VIDEO).await {
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
-            println!("Could not fetch the test video: {}", x);
+            error!("Could not fetch the test video: {}", x);
             return Err(FetchUpdateStatus::CannotFetchTestVideo);
         }
     };
@@ -52,11 +52,11 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    println!("Fetching player JS URL: {}", player_js_url);
+    info!("Fetching player JS URL: {}", player_js_url);
     let player_javascript = match reqwest::get(player_js_url).await {
         Ok(req) => req.text().await.unwrap(),
         Err(x) => {
-            println!("Could not fetch the player JS: {}", x);
+            error!("Could not fetch the player JS: {}", x);
             return Err(FetchUpdateStatus::CannotFetchPlayerJS);
         }
     };
@@ -67,9 +67,9 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         let nsig_function_array_regex = Regex::new(&nsig_function_array_str).unwrap();
         nsig_function_array_opt = match nsig_function_array_regex.captures(&player_javascript) {
             None => {
-                println!("nsig function array did not work: {}", nsig_function_array_str);
+                warn!("nsig function array did not work: {}", nsig_function_array_str);
                 if index == NSIG_FUNCTION_ARRAYS.len() {
-                    println!("!!ERROR!! nsig function array unable to be extracted");
+                    error!("!!ERROR!! nsig function array unable to be extracted");
                     return Err(FetchUpdateStatus::NsigRegexCompileFailed);
                 }
                 continue;
@@ -98,7 +98,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     let nsig_array_context = match Regex::new(&nsig_array_context_regex) {
         Ok(x) => x,
         Err(x) => {
-            println!("Error: nsig regex compilation failed: {}", x);
+            error!("Error: nsig regex compilation failed: {}", x);
             return Err(FetchUpdateStatus::NsigRegexCompileFailed);
         }
     };
@@ -128,9 +128,9 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         let nsig_function_code_regex = Regex::new(&nsig_function_code_regex_str).unwrap();
         nsig_function_code += match nsig_function_code_regex.captures(&player_javascript) {
             None => {
-                println!("nsig function ending did not work: {}", ending);
+                warn!("nsig function ending did not work: {}", ending);
                 if index == NSIG_FUNCTION_ENDINGS.len() {
-                    println!("!!ERROR!! nsig function unable to be extracted");
+                    error!("!!ERROR!! nsig function unable to be extracted");
                     return Err(FetchUpdateStatus::NsigRegexCompileFailed);
                 }
 
@@ -140,7 +140,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
                 i.get(1).unwrap().as_str()
             }
         };
-        //println!("got nsig fn code: {}", nsig_function_code);
+        debug!("got nsig fn code: {}", nsig_function_code);
         break;
     }
 
@@ -194,7 +194,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     sig_code += helper_object_body;
     sig_code += sig_function_body;
 
-    println!("sig code: {}", sig_code);
+    info!("sig code: {}", sig_code);
 
     // Get signature timestamp
     let signature_timestamp: u64 = REGEX_SIGNATURE_TIMESTAMP

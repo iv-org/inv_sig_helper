@@ -14,6 +14,8 @@ lazy-regex = "3.1.0"
 tub = "0.3.7"
 tokio-util = { version = "0.7.10", features=["futures-io", "futures-util", "codec"]}
 futures = "0.3.30"
+log = "0.4.22"
+env_logger = "0.11.5"
 
 # Compilation optimizations for release builds
 # Increases compile time but typically produces a faster and smaller binary. Suitable for final releases but not for debug builds.

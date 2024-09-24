@@ -1,5 +1,5 @@
 use std::io::ErrorKind;
-
+use log::debug;
 use tokio_util::{
     bytes::{Buf, BufMut},
     codec::{Decoder, Encoder},
@@ -52,7 +52,7 @@ impl Decoder for OpcodeDecoder {
         &mut self,
         src: &mut tokio_util::bytes::BytesMut,
     ) -> Result<Option<Self::Item>, Self::Error> {
-        //println!("Decoder length: {}", src.len());
+        debug!("Decoder length: {}", src.len());
         if 5 > src.len() {
             return Ok(None);
         }

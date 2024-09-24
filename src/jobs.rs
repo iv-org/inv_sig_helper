@@ -1,6 +1,7 @@
 use futures::SinkExt;
 use rquickjs::{async_with, AsyncContext, AsyncRuntime};
 use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism, time::SystemTime};
+use log::{debug, error};
 use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
 
@@ -164,11 +165,11 @@ pub async fn process_decrypt_n_signature<W>(
                 Ok(x) => x,
                 Err(n) => {
                     if n.is_exception() {
-                        println!("JavaScript interpreter error (nsig code): {:?}", ctx.catch().as_exception());
+                        error!("JavaScript interpreter error (nsig code): {:?}", ctx.catch().as_exception());
                     } else {
-                        println!("JavaScript interpreter error (nsig code): {}", n);
+                        error!("JavaScript interpreter error (nsig code): {}", n);
                     }
-                    println!("Code: {}", player_info.nsig_function_code.clone());
+                    debug!("Code: {}", player_info.nsig_function_code.clone());
                     writer = cloned_writer.lock().await;
                     let _ = writer.send(OpcodeResponse {
                         opcode: JobOpcode::DecryptNSignature,
@@ -192,11 +193,11 @@ pub async fn process_decrypt_n_signature<W>(
             Ok(x) => x,
             Err(n) => {
                 if n.is_exception() {
-                    println!("JavaScript interpreter error (nsig code): {:?}", ctx.catch().as_exception());
+                    error!("JavaScript interpreter error (nsig code): {:?}", ctx.catch().as_exception());
                 } else {
-                    println!("JavaScript interpreter error (nsig code): {}", n);
+                    error!("JavaScript interpreter error (nsig code): {}", n);
                 }
-                println!("Code: {}", call_string.clone());
+                debug!("Code: {}", call_string.clone());
                 writer = cloned_writer.lock().await;
                 let _ = writer.send(OpcodeResponse {
                     opcode: JobOpcode::DecryptNSignature,
@@ -243,11 +244,11 @@ pub async fn process_decrypt_signature<W>(
                 Ok(x) => x,
                 Err(n) => {
                     if n.is_exception() {
-                        println!("JavaScript interpreter error (sig code): {:?}", ctx.catch().as_exception());
+                        error!("JavaScript interpreter error (sig code): {:?}", ctx.catch().as_exception());
                     } else {
-                        println!("JavaScript interpreter error (sig code): {}", n);
+                        error!("JavaScript interpreter error (sig code): {}", n);
                     }
-                    println!("Code: {}", player_info.sig_function_code.clone());
+                    debug!("Code: {}", player_info.sig_function_code.clone());
                     writer = cloned_writer.lock().await;
                     let _ = writer.send(OpcodeResponse {
                         opcode: JobOpcode::DecryptSignature,
@@ -274,11 +275,11 @@ pub async fn process_decrypt_signature<W>(
             Ok(x) => x,
             Err(n) => {
                 if n.is_exception() {
-                    println!("JavaScript interpreter error (sig code): {:?}", ctx.catch().as_exception());
+                    error!("JavaScript interpreter error (sig code): {:?}", ctx.catch().as_exception());
                 } else {
-                    println!("JavaScript interpreter error (sig code): {}", n);
+                    error!("JavaScript interpreter error (sig code): {}", n);
                 }
-                println!("Code: {}", call_string.clone());
+                debug!("Code: {}", call_string.clone());
                 writer = cloned_writer.lock().await;
                 let _ = writer.send(OpcodeResponse {
                     opcode: JobOpcode::DecryptSignature,
