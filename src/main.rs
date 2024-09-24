@@ -9,6 +9,7 @@ use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOp
 use opcode::OpcodeDecoder;
 use player::fetch_update;
 use std::{env::args, sync::Arc};
+use env_logger::Env;
 use tokio::{
     fs::remove_file,
     io::{AsyncReadExt, AsyncWrite},
@@ -16,6 +17,7 @@ use tokio::{
     sync::Mutex,
 };
 use tokio_util::codec::Framed;
+use log::{info, error, debug};
 
 use crate::jobs::{
     process_decrypt_signature, process_get_signature_timestamp, process_player_status,
@@ -24,11 +26,11 @@ use crate::jobs::{
 
 macro_rules! loop_main {
     ($i:ident, $s:ident) => {
-        println!("Fetching player");
+        info!("Fetching player");
         match fetch_update($s.clone()).await {
-            Ok(()) => println!("Successfully fetched player"),
+            Ok(()) => info!("Successfully fetched player"),
             Err(x) => {
-                println!("Error occured while trying to fetch the player: {:?}", x);
+                error!("Error occured while trying to fetch the player: {:?}", x);
             }
         }
         loop {
@@ -43,6 +45,8 @@ macro_rules! loop_main {
 }
 #[tokio::main]
 async fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
     let args: Vec<String> = args().collect();
     let socket_url: &str = match args.get(1) {
         Some(stringref) => stringref,
@@ -60,14 +64,14 @@ async fn main() {
         let tcp_socket = match TcpListener::bind(socket_tcp_url).await {
             Ok(x) => x,
             Err(x) => {
-                println!("Error occurred while trying to bind: {}", x);
+                error!("Error occurred while trying to bind: {}", x);
                 return;
             }
         };
         loop_main!(tcp_socket, state);
     } else if socket_url == "--test" {
         // TODO: test the API aswell, this only tests the player script extractor
-        println!("Fetching player");
+        info!("Fetching player");
         match fetch_update(state.clone()).await {
             Ok(()) => std::process::exit(0),
             Err(_x) => std::process::exit(-1),
@@ -80,7 +84,7 @@ async fn main() {
                     remove_file(socket_url).await;
                     UnixListener::bind(socket_url).unwrap()
                 } else {
-                    println!("Error occurred while trying to bind: {}", x);
+                    error!("Error occurred while trying to bind: {}", x);
                     return;
                 }
             }
@@ -102,7 +106,7 @@ where
     while let Some(opcode_res) = stream.next().await {
         match opcode_res {
             Ok(opcode) => {
-                //println!("Received job: {}", opcode.opcode);
+                debug!("Received job: {}", opcode.opcode);
 
                 match opcode.opcode {
                     JobOpcode::ForceUpdate => {
@@ -177,7 +181,7 @@ where
                 }
             }
             Err(x) => {
-                println!("I/O error: {:?}", x);
+                error!("I/O error: {:?}", x);
                 break;
             }
         }
