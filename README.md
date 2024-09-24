@@ -93,6 +93,18 @@ The service can run in Unix socket mode (default) or TCP mode:
 
    If no IP:PORT is given, it defaults to `127.0.0.1:12999`.
 
+#### Troubleshooting
+
+The log level can be configured using the `RUST_LOG` environment variable. Valid values are:
+
+- error
+- warn
+- info
+- debug
+- trace
+
+The `info` log level is the default setting. Changing this to `debug` will provide detailed logs on each request for additional troubleshooting.
+
 
 ## Protocol Format
 
