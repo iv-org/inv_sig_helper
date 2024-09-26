@@ -1,6 +1,6 @@
-use std::{sync::Arc, time::SystemTime};
 use log::{debug, error, info, warn};
 use regex::Regex;
+use std::{sync::Arc, time::SystemTime};
 
 use crate::{
     consts::{
@@ -64,19 +64,20 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     let mut nsig_function_array_opt = None;
     // Extract nsig function array code
     for (index, nsig_function_array_str) in NSIG_FUNCTION_ARRAYS.iter().enumerate() {
-        let nsig_function_array_regex = Regex::new(&nsig_function_array_str).unwrap();
+        let nsig_function_array_regex = Regex::new(nsig_function_array_str).unwrap();
         nsig_function_array_opt = match nsig_function_array_regex.captures(&player_javascript) {
             None => {
-                warn!("nsig function array did not work: {}", nsig_function_array_str);
+                warn!(
+                    "nsig function array did not work: {}",
+                    nsig_function_array_str
+                );
                 if index == NSIG_FUNCTION_ARRAYS.len() {
                     error!("!!ERROR!! nsig function array unable to be extracted");
                     return Err(FetchUpdateStatus::NsigRegexCompileFailed);
                 }
                 continue;
             }
-            Some(i) => {
-                Some(i)
-            }
+            Some(i) => Some(i),
         };
         break;
     }
@@ -90,10 +91,10 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         .parse::<usize>()
         .unwrap();
 
-    let mut nsig_array_context_regex: String = String::new();
-    nsig_array_context_regex += "var ";
-    nsig_array_context_regex += &nsig_array_name.replace("$", "\\$");
-    nsig_array_context_regex += "\\s*=\\s*\\[(.+?)][;,]";
+    let nsig_array_context_regex: String = format!(
+        "var {name}\\s*=\\s*\\[(.+?)][;,]",
+        name = nsig_array_name.replace("$", "\\$")
+    );
 
     let nsig_array_context = match Regex::new(&nsig_array_context_regex) {
         Ok(x) => x,
@@ -115,20 +116,19 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
     let nsig_function_name = array_values.get(nsig_array_value).unwrap();
 
-    let mut nsig_function_code = String::new();
-    nsig_function_code += "function ";
-    nsig_function_code += NSIG_FUNCTION_NAME;
+    let mut nsig_function_code = format!("function {NSIG_FUNCTION_NAME}");
 
     // Extract nsig function code
     for (index, ending) in NSIG_FUNCTION_ENDINGS.iter().enumerate() {
-        let mut nsig_function_code_regex_str: String = String::new();
-        nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
-        nsig_function_code_regex_str += ending;
+        let nsig_function_code_regex_str =
+            format!("{}{ending}", nsig_function_name.replace("$", "\\$"));
 
         let nsig_function_code_regex = Regex::new(&nsig_function_code_regex_str).unwrap();
+
         nsig_function_code += match nsig_function_code_regex.captures(&player_javascript) {
             None => {
                 warn!("nsig function ending did not work: {}", ending);
+
                 if index == NSIG_FUNCTION_ENDINGS.len() {
                     error!("!!ERROR!! nsig function unable to be extracted");
                     return Err(FetchUpdateStatus::NsigRegexCompileFailed);
@@ -136,9 +136,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
                 continue;
             }
-            Some(i) => {
-                i.get(1).unwrap().as_str()
-            }
+            Some(i) => i.get(1).unwrap().as_str(),
         };
         debug!("got nsig fn code: {}", nsig_function_code);
         break;
@@ -152,9 +150,10 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         .unwrap()
         .as_str();
 
-    let mut sig_function_body_regex_str: String = String::new();
-    sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
-    sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
+    let sig_function_body_regex_str = format!(
+        "{name}=function\\([a-zA-Z0-9_]+\\)\\{{.+?\\}}",
+        name = sig_function_name.replace("$", "\\$")
+    );
 
     let sig_function_body_regex = Regex::new(&sig_function_body_regex_str).unwrap();
 
@@ -173,10 +172,8 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         .unwrap()
         .as_str();
 
-    let mut helper_object_body_regex_str = String::new();
-    helper_object_body_regex_str += "(var ";
-    helper_object_body_regex_str += helper_object_name;
-    helper_object_body_regex_str += "=\\{(?:.|\\n)+?\\}\\};)";
+    let helper_object_body_regex_str =
+        format!("(var {helper_object_name}=\\{{(?:.|\\n)+?\\}}\\}};)");
 
     let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
     let helper_object_body = helper_object_body_regex
@@ -186,13 +183,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         .unwrap()
         .as_str();
 
-    let mut sig_code = String::new();
-    sig_code += "var ";
-    sig_code += sig_function_name;
-    sig_code += ";";
-
-    sig_code += helper_object_body;
-    sig_code += sig_function_body;
+    let sig_code = format!("var {sig_function_name};{helper_object_body}{sig_function_body}");
 
     info!("sig code: {}", sig_code);
 

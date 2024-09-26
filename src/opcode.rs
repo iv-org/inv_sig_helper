@@ -1,5 +1,5 @@
-use std::io::ErrorKind;
 use log::debug;
+use std::io::ErrorKind;
 use tokio_util::{
     bytes::{Buf, BufMut},
     codec::{Decoder, Encoder},
