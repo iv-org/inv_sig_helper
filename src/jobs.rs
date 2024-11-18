@@ -1,46 +1,27 @@
 use futures::SinkExt;
+use log::{debug, error};
 use rquickjs::{async_with, AsyncContext, AsyncRuntime};
 use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism, time::SystemTime};
-use log::{debug, error};
+use strum_macros::{Display, FromRepr};
 use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
 
 use crate::{consts::NSIG_FUNCTION_NAME, opcode::OpcodeResponse, player::fetch_update};
 
+#[derive(Display, FromRepr)]
 pub enum JobOpcode {
-    ForceUpdate,
-    DecryptNSignature,
+    ForceUpdate = 0,
+    DecryptNSignature = 1,
     DecryptSignature,
     GetSignatureTimestamp,
     PlayerStatus,
     PlayerUpdateTimestamp,
-    UnknownOpcode,
+    UnknownOpcode = 255,
 }
 
-impl std::fmt::Display for JobOpcode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ForceUpdate => write!(f, "ForceUpdate"),
-            Self::DecryptNSignature => write!(f, "DecryptNSignature"),
-            Self::DecryptSignature => write!(f, "DecryptSignature"),
-            Self::GetSignatureTimestamp => write!(f, "GetSignatureTimestamp"),
-            Self::PlayerStatus => write!(f, "PlayerStatus"),
-            Self::PlayerUpdateTimestamp => write!(f, "PlayerUpdateTimestamp"),
-            Self::UnknownOpcode => write!(f, "UnknownOpcode"),
-        }
-    }
-}
 impl From<u8> for JobOpcode {
     fn from(value: u8) -> Self {
-        match value {
-            0x00 => Self::ForceUpdate,
-            0x01 => Self::DecryptNSignature,
-            0x02 => Self::DecryptSignature,
-            0x03 => Self::GetSignatureTimestamp,
-            0x04 => Self::PlayerStatus,
-            0x05 => Self::PlayerUpdateTimestamp,
-            _ => Self::UnknownOpcode,
-        }
+        JobOpcode::from_repr(value as usize).unwrap_or(Self::UnknownOpcode)
     }
 }
 
@@ -54,7 +35,22 @@ pub struct PlayerInfo {
     pub last_update: SystemTime,
 }
 
+impl Default for PlayerInfo {
+    fn default() -> Self {
+        Self {
+            nsig_function_code: Default::default(),
+            sig_function_code: Default::default(),
+            sig_function_name: Default::default(),
+            signature_timestamp: Default::default(),
+            player_id: Default::default(),
+            has_player: Default::default(),
+            last_update: SystemTime::now(),
+        }
+    }
+}
+
 pub struct JavascriptInterpreter {
+    #[allow(dead_code)]
     js_runtime: AsyncRuntime,
     sig_context: AsyncContext,
     nsig_context: AsyncContext,
@@ -65,17 +61,20 @@ pub struct JavascriptInterpreter {
 impl JavascriptInterpreter {
     pub fn new() -> JavascriptInterpreter {
         let js_runtime = AsyncRuntime::new().unwrap();
+
         // not ideal, but this is only done at startup
         let nsig_context = block_in_place(|| {
             Handle::current()
                 .block_on(AsyncContext::full(&js_runtime))
                 .unwrap()
         });
+
         let sig_context = block_in_place(|| {
             Handle::current()
                 .block_on(AsyncContext::full(&js_runtime))
                 .unwrap()
         });
+
         JavascriptInterpreter {
             js_runtime,
             sig_context,
@@ -98,22 +97,16 @@ impl GlobalState {
             .get();
         let mut runtime_vector: Vec<Arc<JavascriptInterpreter>> =
             Vec::with_capacity(number_of_runtimes);
-        for _n in 0..number_of_runtimes {
+
+        for _ in 0..number_of_runtimes {
             runtime_vector.push(Arc::new(JavascriptInterpreter::new()));
         }
 
-        let runtime_pool: Pool<Arc<JavascriptInterpreter>> = Pool::from_vec(runtime_vector);
+        let js_runtime_pool: Pool<Arc<JavascriptInterpreter>> = Pool::from_vec(runtime_vector);
+
         GlobalState {
-            player_info: Mutex::new(PlayerInfo {
-                nsig_function_code: Default::default(),
-                sig_function_code: Default::default(),
-                sig_function_name: Default::default(),
-                player_id: Default::default(),
-                signature_timestamp: Default::default(),
-                has_player: 0x00,
-                last_update: SystemTime::now(),
-            }),
-            js_runtime_pool: runtime_pool,
+            player_info: Mutex::new(PlayerInfo::default()),
+            js_runtime_pool,
         }
     }
 }
@@ -183,11 +176,7 @@ pub async fn process_decrypt_n_signature<W>(
         }
         drop(player_info);
 
-        let mut call_string: String = String::new();
-        call_string += NSIG_FUNCTION_NAME;
-        call_string += "(\"";
-        call_string += &sig.replace("\"", "\\\"");
-        call_string += "\")";
+        let call_string = format!("{NSIG_FUNCTION_NAME}(\"{}\")", sig.replace("\"", "\\\""));
 
         let decrypted_string = match ctx.eval::<String,String>(call_string.clone()) {
             Ok(x) => x,
@@ -263,11 +252,7 @@ pub async fn process_decrypt_signature<W>(
 
         let sig_function_name = &player_info.sig_function_name;
 
-        let mut call_string: String = String::new();
-        call_string += sig_function_name;
-        call_string += "(\"";
-        call_string += &sig.replace("\"", "\\\"");
-        call_string += "\")";
+        let call_string = format!("{sig_function_name}(\"{}\")", sig.replace("\"", "\\\""));
 
         drop(player_info);
 
