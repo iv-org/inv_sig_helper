@@ -18,6 +18,12 @@ pub enum FetchUpdateStatus {
     CannotFetchPlayerJS,
     NsigRegexCompileFailed,
     PlayerAlreadyUpdated,
+    CannotMatchSignature
+}
+
+fn fixup_n_function_code(code: &str) -> String {
+    let re = regex::Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*["']undefined["']\s*\)\s*return\s+[a-zA-Z0-9_$]+;"#).unwrap();
+    re.replace_all(code, ";").to_string()
 }
 
 pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStatus> {
@@ -140,18 +146,26 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
                 i.get(1).unwrap().as_str()
             }
         };
+        nsig_function_code = fixup_n_function_code(&nsig_function_code);
         debug!("got nsig fn code: {}", nsig_function_code);
         break;
     }
 
     // Extract signature function name
-    let sig_function_name = REGEX_SIGNATURE_FUNCTION
-        .captures(&player_javascript)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
-
+    let sig_function_name = match REGEX_SIGNATURE_FUNCTION.captures(&player_javascript) {
+        Some(captures) => {
+            // Try groups 1, 2, and 3 which contain the signature function name
+            [1, 2, 3].iter()
+                .find_map(|&i| captures.get(i))
+                .map(|m| m.as_str())
+                .ok_or(FetchUpdateStatus::CannotMatchSignature)?
+        }
+        None => {
+            error!("Could not match signature function pattern");
+            return Err(FetchUpdateStatus::CannotMatchSignature);
+        }
+    };
+    debug!("sig function name: {}", sig_function_name);
     let mut sig_function_body_regex_str: String = String::new();
     sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
     sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
