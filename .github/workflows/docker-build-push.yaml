@@ -16,8 +16,8 @@ on:
 
 # Define environment variables used throughout the workflow
 env:
-  REGISTRY: quay.io
-  IMAGE_NAME: invidious/inv-sig-helper
+  REGISTRY: ghcr.io
+  IMAGE_NAME: rockerboo/inv-sig-helper
 
 jobs:
   build-and-push:
