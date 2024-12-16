@@ -34,7 +34,7 @@ pub static REGEX_SIGNATURE_FUNCTION: Lazy<Regex> = Lazy::new(|| {
         r#")"#
     )).unwrap()
 });
-pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(";([A-Za-z0-9_\\$]{2,})\\...\\(");
+pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(r"([A-Za-z0-9_\$]{1,})=function\(");
 
 pub static NSIG_FUNCTION_NAME: &str = "decrypt_nsig";
 pub static SIG_FUNCTION_NAME: &str = "decrypt_sig";
