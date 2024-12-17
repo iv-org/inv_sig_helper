@@ -193,13 +193,18 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     helper_object_body_regex_str += "=\\{(?:.|\\n)+?\\}\\};)";
 
     let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
-    let helper_object_body = helper_object_body_regex
-        .captures(&player_javascript)
-        .unwrap()
+    let helper_object_body = match(helper_object_body_regex
+        .captures(&player_javascript))
+    {
+        Some(res)=>res
         .get(0)
         .unwrap()
-        .as_str();
+        .as_str(),
+        None=>""
+    };
+   if helper_object_body != ""{
 
+   
     let mut sig_code = String::new();
     sig_code += "var ";
     sig_code += sig_function_name;
@@ -209,7 +214,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     sig_code += sig_function_body;
 
     info!("sig code: {}", sig_code);
-
+   
     // Get signature timestamp
     let signature_timestamp: u64 = REGEX_SIGNATURE_TIMESTAMP
         .captures(&player_javascript)
@@ -228,6 +233,9 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     current_player_info.signature_timestamp = signature_timestamp;
     current_player_info.has_player = 0xFF;
     current_player_info.last_update = SystemTime::now();
-
+   }
+   else{
+       return Err(FetchUpdateStatus::CannotMatchSignature);
+   }
     Ok(())
 }
