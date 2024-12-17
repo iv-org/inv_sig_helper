@@ -182,10 +182,9 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     // Get the helper object
     let helper_object_name = REGEX_HELPER_OBJ_NAME
         .captures(sig_function_body)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
+        .and_then(|cap| cap.get(1).or_else(|| cap.get(2)))
+        .map(|m| m.as_str())
+        .unwrap_or_default();
 
     let mut helper_object_body_regex_str = String::new();
     helper_object_body_regex_str += "(var ";
