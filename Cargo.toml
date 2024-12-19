@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 regex = "1.10.4"
-rquickjs = {version = "0.6.0", features=["futures", "parallel"]}
 tokio = { version = "1.37.0", features = ["full", "net", "macros", "rt-multi-thread", "io-std", "io-util", "mio"] }
 reqwest = "0.12.4"
 lazy-regex = "3.1.0"
@@ -16,6 +15,13 @@ tokio-util = { version = "0.7.10", features=["futures-io", "futures-util", "code
 futures = "0.3.30"
 log = "0.4.22"
 env_logger = "0.11.5"
+
+[target.'cfg(not(target_os = "freebsd"))'.dependencies]
+rquickjs = {version = "0.6.0", features=["futures", "parallel"]}
+
+[target.'cfg(target_os = "freebsd")'.dependencies]
+rquickjs = {version = "0.6.2", features=["futures", "parallel", "bindgen"]}
+
 
 # Compilation optimizations for release builds
 # Increases compile time but typically produces a faster and smaller binary. Suitable for final releases but not for debug builds.
