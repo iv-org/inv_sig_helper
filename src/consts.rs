@@ -13,7 +13,7 @@ pub static NSIG_FUNCTION_ARRAYS: &[&str] = &[
 ];
 
 pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
-    r#"=\s*function(\([\w]+\)\{\s*var\s+[\w\s]+=[\w\.\s]+?\.call\s*\([\w\s$]+?,[\(\)\",\s]+\)[\S\s]*?\}\s*return [\w\.\s$]+?\.call\s*\([\w\s$]+?\s*,[\(\)\",\s]+\)\s*\}\s*;)"#,
+    r#"\s*=function\s*(\(\w\)\s*\{\s*var\s+\w=\w.split.*?\{\s*return"[a-zA-Z0-9_]+.?_w8_".*?\}\s*return\s+\w+\.join\(""\)\s*\}\s*;)"#,
     r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\(\"\"\)\s*\};)"#,
     r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,\"\"\)\s*\};)"#,
 ];
@@ -21,7 +21,7 @@ pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
 pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[=:](\\d+)");
 
 pub static REGEX_SIGNATURE_FUNCTION: &Lazy<Regex> =
-    regex!("\\bc&&\\(c=([a-zA-Z0-9$]{2,})\\(decodeURIComponent\\(c\\)\\)");
+    regex!(r#"\s*?([a-zA-Z0-9_]{1,})=function\([a-zA-Z]{1}\)\{(.{1}=.{1}\.split\(""\)[^\}{]+)return .{1}\.join\(""\)\}"#);
 pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(";([A-Za-z0-9_\\$]{2,})\\...\\(");
 
 pub static NSIG_FUNCTION_NAME: &str = "decrypt_nsig";

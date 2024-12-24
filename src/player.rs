@@ -20,6 +20,19 @@ pub enum FetchUpdateStatus {
     PlayerAlreadyUpdated,
 }
 
+fn fixup_nsig_jscode(jscode: &str) -> String {
+    let fixup_re = Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*"undefined"\s*\)\s*return\s+\w+;"#).unwrap();
+
+    // Replace the matched pattern with just ";"
+    if fixup_re.is_match(jscode) {
+        info!("Fixing up nsig_func_body.");
+        return fixup_re.replace_all(jscode, ";").to_string();
+    } else {
+        info!("nsig_func returned with no fixup");
+        return jscode.to_string();
+    }
+}
+
 pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStatus> {
     let global_state = state.clone();
     let response = match reqwest::get(TEST_YOUTUBE_VIDEO).await {
@@ -122,6 +135,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     // Extract nsig function code
     for (index, ending) in NSIG_FUNCTION_ENDINGS.iter().enumerate() {
         let mut nsig_function_code_regex_str: String = String::new();
+        nsig_function_code_regex_str += "(?ms)";
         nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
         nsig_function_code_regex_str += ending;
 
@@ -140,6 +154,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
                 i.get(1).unwrap().as_str()
             }
         };
+        nsig_function_code = fixup_nsig_jscode(&nsig_function_code);
         debug!("got nsig fn code: {}", nsig_function_code);
         break;
     }
