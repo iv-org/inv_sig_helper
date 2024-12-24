@@ -13,28 +13,16 @@ pub static NSIG_FUNCTION_ARRAYS: &[&str] = &[
 ];
 
 pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
-    r#"=\s*function(\([\w]+\)\{\s*var\s+[\w\s]+=[\w\.\s]+?\.call\s*\([\w\s$]+?,[\(\)\",\s]+\)[\S\s]*?\}\s*return [\w\.\s$]+?\.call\s*\([\w\s$]+?\s*,[\(\)\",\s]+\)\s*\}\s*;)"#,
+    r#"\s*=function\s*(\(\w\)\s*\{\s*var\s+\w=\w.split.*?\{\s*return"[a-zA-Z0-9_]+.?_w8_".*?\}\s*return\s+\w+\.join\(""\)\s*\}\s*;)"#,
     r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\(\"\"\)\s*\};)"#,
     r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,\"\"\)\s*\};)"#,
 ];
 
 pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[=:](\\d+)");
 
-pub static REGEX_SIGNATURE_FUNCTION: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(concat!(
-        r#"(?:"#,
-            // Pattern 1
-            r#"\b[a-zA-Z0-9$]+&&\([a-zA-Z0-9$]+=([a-zA-Z0-9$]{2,})\(decodeURIComponent\([a-zA-Z0-9$]+\)\)\)"#,
-            r#"|"#,
-            // Pattern 2
-            r#"([a-zA-Z0-9$]+)\s*=\s*function\(\s*[a-zA-Z0-9$]+\s*\)\s*\{\s*[^}]+?\.split\(\s*""\s*\)[^}]+?\.join\(\s*""\s*\)"#,
-            r#"|"#,
-            // Pattern 3
-            r#"(?:\b|[^a-zA-Z0-9$])([a-zA-Z0-9$]{2,})\s*=\s*function\(\s*a\s*\)\s*\{\s*a\s*=\s*a\.split\(\s*""\s*\)"#,
-        r#")"#
-    )).unwrap()
-});
-pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(r"function\(([a-zA-Z_$][a-zA-Z0-9_$]*)\)|([a-zA-Z_$][a-zA-Z0-9_$]*)\.[A-Za-z_$]");
+pub static REGEX_SIGNATURE_FUNCTION: &Lazy<Regex> =
+    regex!(r#"\s*?([a-zA-Z0-9_]{1,})=function\([a-zA-Z]{1}\)\{(.{1}=.{1}\.split\(""\)[^\}{]+)return .{1}\.join\(""\)\}"#);
+pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(";([A-Za-z0-9_\\$]{2,})\\...\\(");
 
 pub static NSIG_FUNCTION_NAME: &str = "decrypt_nsig";
 pub static SIG_FUNCTION_NAME: &str = "decrypt_sig";

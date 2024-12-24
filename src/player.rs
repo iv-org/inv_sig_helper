@@ -18,12 +18,19 @@ pub enum FetchUpdateStatus {
     CannotFetchPlayerJS,
     NsigRegexCompileFailed,
     PlayerAlreadyUpdated,
-    CannotMatchSignature
 }
 
-fn fixup_n_function_code(code: &str) -> String {
-    let re = regex::Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*["']undefined["']\s*\)\s*return\s+[a-zA-Z0-9_$]+;"#).unwrap();
-    re.replace_all(code, ";").to_string()
+fn fixup_nsig_jscode(jscode: &str) -> String {
+    let fixup_re = Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*"undefined"\s*\)\s*return\s+\w+;"#).unwrap();
+
+    // Replace the matched pattern with just ";"
+    if fixup_re.is_match(jscode) {
+        info!("Fixing up nsig_func_body.");
+        return fixup_re.replace_all(jscode, ";").to_string();
+    } else {
+        info!("nsig_func returned with no fixup");
+        return jscode.to_string();
+    }
 }
 
 pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStatus> {
@@ -128,6 +135,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     // Extract nsig function code
     for (index, ending) in NSIG_FUNCTION_ENDINGS.iter().enumerate() {
         let mut nsig_function_code_regex_str: String = String::new();
+        nsig_function_code_regex_str += "(?ms)";
         nsig_function_code_regex_str += &nsig_function_name.replace("$", "\\$");
         nsig_function_code_regex_str += ending;
 
@@ -146,26 +154,19 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
                 i.get(1).unwrap().as_str()
             }
         };
-        nsig_function_code = fixup_n_function_code(&nsig_function_code);
+        nsig_function_code = fixup_nsig_jscode(&nsig_function_code);
         debug!("got nsig fn code: {}", nsig_function_code);
         break;
     }
 
     // Extract signature function name
-    let sig_function_name = match REGEX_SIGNATURE_FUNCTION.captures(&player_javascript) {
-        Some(captures) => {
-            // Try groups 1, 2, and 3 which contain the signature function name
-            [1, 2, 3].iter()
-                .find_map(|&i| captures.get(i))
-                .map(|m| m.as_str())
-                .ok_or(FetchUpdateStatus::CannotMatchSignature)?
-        }
-        None => {
-            error!("Could not match signature function pattern");
-            return Err(FetchUpdateStatus::CannotMatchSignature);
-        }
-    };
-    debug!("sig function name: {}", sig_function_name);
+    let sig_function_name = REGEX_SIGNATURE_FUNCTION
+        .captures(&player_javascript)
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_str();
+
     let mut sig_function_body_regex_str: String = String::new();
     sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
     sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
@@ -182,9 +183,10 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     // Get the helper object
     let helper_object_name = REGEX_HELPER_OBJ_NAME
         .captures(sig_function_body)
-        .and_then(|cap| cap.get(1).or_else(|| cap.get(2)))
-        .map(|m| m.as_str())
-        .unwrap_or_default();
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_str();
 
     let mut helper_object_body_regex_str = String::new();
     helper_object_body_regex_str += "(var ";
