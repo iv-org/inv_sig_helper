@@ -4,11 +4,11 @@ mod opcode;
 mod player;
 
 use ::futures::StreamExt;
-use consts::{DEFAULT_SOCK_PATH, DEFAULT_TCP_URL};
+use consts::{DEFAULT_SOCK_PATH, DEFAULT_SOCK_PERMS, DEFAULT_TCP_URL};
 use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
 use opcode::OpcodeDecoder;
 use player::fetch_update;
-use std::{env::args, sync::Arc};
+use std::{env::args, sync::Arc, fs::set_permissions, fs::Permissions, os::unix::fs::PermissionsExt};
 use env_logger::Env;
 use tokio::{
     fs::remove_file,
@@ -89,6 +89,13 @@ async fn main() {
                 }
             }
         };
+        let socket_perms: u32 = match args.get(2) {
+            Some(stringref) => u32::from_str_radix(stringref, 8).expect(
+                "Socket permissions must be an octal from 0 to 777!"),
+            None => DEFAULT_SOCK_PERMS,
+        };
+        let perms = Permissions::from_mode(socket_perms);
+        let _ = set_permissions(socket_url, perms);
         loop_main!(unix_socket, state);
     }
 }
