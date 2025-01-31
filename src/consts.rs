@@ -14,7 +14,7 @@ pub static NSIG_FUNCTION_ARRAYS: &[&str] = &[
 ];
 
 pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
-    r#"\s*=function\s*(\(\w\)\s*\{\s*var\s+\w=\w.split.*?\{\s*return"[a-zA-Z0-9_]+.?_w8_".*?\}\s*return\s+\w+\.join\(""\)\s*\}\s*;)"#,
+    r#"=\s*function(\(\w\)\s*\{[\S\s]*\{return.[a-zA-Z0-9_-]+_w8_.+?\}\s*return\s*\w+.join\(""\)\};)"#,
     r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\(\"\"\)\s*\};)"#,
     r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,\"\"\)\s*\};)"#,
 ];
