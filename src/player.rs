@@ -48,7 +48,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         None => return Err(FetchUpdateStatus::CannotMatchPlayerID),
     };
 
-    let player_id: u32 = u32::from_str_radix(player_id_str, 16).unwrap();
+    let mut player_id: u32 = u32::from_str_radix(player_id_str, 16).unwrap();
 
     let mut current_player_info = global_state.player_info.lock().await;
     let current_player_id = current_player_info.player_id;
@@ -60,6 +60,9 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     // release the mutex for other tasks
     drop(current_player_info);
 
+    // temp workaround
+    player_id = 0xf3d47b5a;
+    
     // Download the player script
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
