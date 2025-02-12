@@ -4,8 +4,6 @@
 import yt_dlp.YoutubeDL
 import yt_dlp.extractor.youtube
 import sys
-import os
-import json
 
 """
 Args:
