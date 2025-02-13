@@ -51,7 +51,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     let mut player_id: u32 = u32::from_str_radix(player_id_str, 16).unwrap();
 
     let mut current_player_info = global_state.player_info.lock().await;
-    let mut current_player_id = current_player_info.player_id;
+    let player_id: u32 = u32::from_str_radix(player_id_str, 16).unwrap();
 
     if player_id == current_player_id {
         current_player_info.last_update = SystemTime::now();
