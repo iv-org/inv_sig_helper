@@ -190,10 +190,13 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
 
     let mut helper_object_body_regex_str = String::new();
     helper_object_body_regex_str += "(var ";
-    helper_object_body_regex_str += helper_object_name;
+    helper_object_body_regex_str += &helper_object_name.replace("$", "\\$");
     helper_object_body_regex_str += "=\\{(?:.|\\n)+?\\}\\};)";
 
     let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
+
+    println!("{helper_object_body_regex_str}");
+
     let helper_object_body = helper_object_body_regex
         .captures(&player_javascript)
         .unwrap()
