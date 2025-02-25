@@ -168,7 +168,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         .as_str();
 
     let mut sig_function_body_regex_str: String = String::new();
-    sig_function_body_regex_str += sig_function_name;
+    sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
     sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
 
     let sig_function_body_regex = Regex::new(&sig_function_body_regex_str).unwrap();
