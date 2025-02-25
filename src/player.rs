@@ -194,9 +194,6 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     helper_object_body_regex_str += "=\\{(?:.|\\n)+?\\}\\};)";
 
     let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
-
-    println!("{helper_object_body_regex_str}");
-
     let helper_object_body = helper_object_body_regex
         .captures(&player_javascript)
         .unwrap()
