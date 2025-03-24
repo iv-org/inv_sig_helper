@@ -1,8 +1,17 @@
 mod consts;
 
 use ::futures::StreamExt;
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
 
 use consts::{ENV_USE_YT_DLP, "TEST_YOUTUBE_VIDEO"};
+
+fn ytdlp_get_script_path(script_name: &str) -> PathBuf {
+    let exe_path = std::env::current_exe().expect("Failed to get current path of binary");
+    let exe_dir = exe_path.parent().expect("Failed to get current path of binary");
+    exe_dir.join("scripts").join(script_name)
+}
 
 fn ytdlp_requested() -> bool {
     match std::env::var(ENV_USE_YT_DLP) {
@@ -16,7 +25,7 @@ fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    let mut child = std::process::Command::new("src/ytdlp_signature_timestamp.py")
+    let mut child = std::process::Command::new(ytdlp_get_script_path("ytdlp_signature_timestamp.py"))
         .arg(player_js_url)
         .arg(TEST_YOUTUBE_VIDEO)
         .output()
@@ -31,7 +40,7 @@ fn ytdlp_nsig_decoder(signature: &str, player_id: u32) -> String {
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    let mut child = std::process::Command::new("src/ytdlp_nsig_decoder.py")
+    let mut child = std::process::Command::new(ytdlp_get_script_path("ytdlp_nsig_decoder.py"))
         .arg(player_js_url)
         .arg(signature)
         .arg(TEST_YOUTUBE_VIDEO)
@@ -47,7 +56,7 @@ fn ytdlp_sig_decoder(signature: &str, player_id: u32) -> String {
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    let mut child = std::process::Command::new("src/ytdlp_sig_decoder.py")
+    let mut child = std::process::Command::new(ytdlp_get_script_path("ytdlp_sig_decoder.py"))
         .arg(player_js_url)
         .arg(signature)
         .arg(TEST_YOUTUBE_VIDEO)

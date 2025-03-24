@@ -12,6 +12,13 @@ RUN apk add --no-cache \
     pkgconfig \
     patch
 
+# Install python3 for ytdlp
+RUN apk add --no-cache python3 py3-pip
+
+# Install yt-dlp
+RUN pip3 install yt-dlp
+
+
 # Set environment variables for static linking
 ENV OPENSSL_STATIC=yes
 ENV OPENSSL_DIR=/usr
@@ -35,6 +42,10 @@ FROM scratch
 # Copy necessary files from the builder stage, using the correct architecture path
 COPY --from=builder /usr/src/app/target/*/release/inv_sig_helper_rust /app/inv_sig_helper_rust
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy scripts and make them executable
+COPY --from=builder /usr/src/app/scripts /app/scripts
+RUN chmod +x /app/scripts/*
 
 # Copy passwd file for the non-privileged user from the user-stage
 COPY --from=user-stage /etc/passwd /etc/passwd
