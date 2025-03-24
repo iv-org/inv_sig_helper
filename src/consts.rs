@@ -9,14 +9,14 @@ pub static TEST_YOUTUBE_VIDEO: &str = "https://www.youtube.com/watch?v=jNQXAC9IV
 
 pub static REGEX_PLAYER_ID: &Lazy<Regex> = regex!("\\/s\\/player\\/([0-9a-f]{8})");
 pub static NSIG_FUNCTION_ARRAYS: &[&str] = &[
-    r#"null\)&&\([a-zA-Z]=(?P<nfunc>[_a-zA-Z0-9$]+)\[(?P<idx>\d+)\]\([a-zA-Z0-9$]\)"#,
-    r#"(?x)&&\(b="n+"\[[a-zA-Z0-9.+$]+\],c=a\.get\(b\)\)&&\(c=(?P<nfunc>[a-zA-Z0-9$]+)(?:\[(?P<idx>\d+)\])?\([a-zA-Z0-9$]\)"#,
+    r#"null\)&&\([a-zA-Z]=(?P<nfunc>[_a-zA-Z0-9$]+)\[(?P<idx>\d+)\]\([a-zA-Z0-9]\)"#,
+    r#"(?x)&&\(b="n+"\[[a-zA-Z0-9.+$]+\],c=a\.get\(b\)\)&&\(c=(?P<nfunc>[a-zA-Z0-9$]+)(?:\[(?P<idx>\d+)\])?\([a-zA-Z0-9]\)"#,
 ];
 
 pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
-    r#"=\s*function(\(\w\)\s*\{[\S\s]*\{return.[a-zA-Z0-9_$-]+_w8_.+?\}\s*return\s*\w+.join\(""\)\};)"#,
-    r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\(""\)\s*\};)"#,
-    r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,""\)\s*\};)"#,
+    r#"=\s*function(\(\w\)\s*\{[\S\s]*\{return.[a-zA-Z0-9_-]+_w8_.+?\}\s*return\s*\w+.join\([a-zA-Z0-9\-_\$\[\]"]+\)\};)"#,
+    r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\([a-zA-Z0-9\-_\$\[\]"]+\)\s*\};)"#,
+    r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,[a-zA-Z0-9\-_\$\[\]"]+\)\s*\};)"#,
 ];
 
 pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[=:](\\d+)");
