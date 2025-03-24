@@ -1,6 +1,5 @@
-use std::env::var;
 use std::path::PathBuf;
-use std::process::Command::new;
+use std::process::Command;
 
 use crate::consts::{ENV_USE_YT_DLP, TEST_YOUTUBE_VIDEO};
 

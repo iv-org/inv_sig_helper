@@ -47,10 +47,6 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # Copy scripts
 COPY --from=builder /usr/src/app/src/scripts /app/scripts
 
-
-# Copy passwd file for the non-privileged user from the user-stage
-COPY --from=user-stage /etc/passwd /etc/passwd
-
 # Set the working directory
 WORKDIR /app
 
