@@ -14,9 +14,9 @@ pub static NSIG_FUNCTION_ARRAYS: &[&str] = &[
 ];
 
 pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
-    r#"=\s*function(\(\w\)\s*\{[\S\s]*\{return.[a-zA-Z0-9_-]+_w8_.+?\}\s*return\s*\w+.join\([a-zA-Z0-9\-_\$\[\]"]+\)\};)"#,
-    r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\([a-zA-Z0-9\-_\$\[\]"]+\)\s*\};)"#,
-    r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,[a-zA-Z0-9\-_\$\[\]"]+\)\s*\};)"#,
+    r#"=\s*function(\(\w\)\s*\{[\S\s]*\{return.[a-zA-Z0-9_-]+_w8_.+?\}\s*return\s*\w+.join\(""\)\};)"#,
+    r#"=\s*function([\S\s]*?\}\s*return \w+?\.join\(""\)\s*\};)"#,
+    r#"=\s*function([\S\s]*?\}\s*return [\W\w$]+?\.call\([\w$]+?,""\)\s*\};)"#,
 ];
 
 pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[=:](\\d+)");
