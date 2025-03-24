@@ -26,6 +26,9 @@ ENV OPENSSL_DIR=/usr
 # Copy the current directory contents into the container
 COPY . .
 
+# make sure the scripts are executable
+RUN chmod +x src/scripts/*
+
 # Determine the target architecture and build the application
 RUN RUST_TARGET=$(rustc -vV | sed -n 's/host: //p') && \
     rustup target add $RUST_TARGET && \
@@ -43,9 +46,9 @@ FROM scratch
 COPY --from=builder /usr/src/app/target/*/release/inv_sig_helper_rust /app/inv_sig_helper_rust
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Copy scripts and make them executable
-COPY --from=builder /usr/src/app/scripts /app/scripts
-RUN chmod +x /app/scripts/*
+# Copy scripts
+COPY --from=builder /usr/src/app/src/scripts /app/scripts
+
 
 # Copy passwd file for the non-privileged user from the user-stage
 COPY --from=user-stage /etc/passwd /etc/passwd

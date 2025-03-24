@@ -56,6 +56,10 @@ async fn main() {
         None => DEFAULT_SOCK_PATH,
     };
 
+    if ytdlp_requested() {
+        info!("Using yt-dlp for signature decryption");
+    }
+
     // have to please rust
     let state: Arc<GlobalState> = Arc::new(GlobalState::new());
 
