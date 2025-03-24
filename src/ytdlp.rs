@@ -22,7 +22,7 @@ pub fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    let child = std::process::Command::new(ytdlp_get_script_path("ytdlp_signature_timestamp.py"))
+    let child = std::process::Command::new(ytdlp_get_script_path("yt-dlp_signature_timestamp.py"))
         .arg(player_js_url)
         .arg(TEST_YOUTUBE_VIDEO)
         .output()
@@ -37,7 +37,7 @@ pub fn ytdlp_nsig_decoder(signature: &str, player_id: u32) -> String {
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    let child = std::process::Command::new(ytdlp_get_script_path("ytdlp_nsig_decoder.py"))
+    let child = std::process::Command::new(ytdlp_get_script_path("yt-dlp_nsig_decoder.py"))
         .arg(player_js_url)
         .arg(signature)
         .arg(TEST_YOUTUBE_VIDEO)
@@ -53,7 +53,7 @@ pub fn ytdlp_sig_decoder(signature: &str, player_id: u32) -> String {
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
     );
-    let child = std::process::Command::new(ytdlp_get_script_path("ytdlp_sig_decoder.py"))
+    let child = std::process::Command::new(ytdlp_get_script_path("yt-dlp_sig_decoder.py"))
         .arg(player_js_url)
         .arg(signature)
         .arg(TEST_YOUTUBE_VIDEO)

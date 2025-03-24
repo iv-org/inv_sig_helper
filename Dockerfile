@@ -12,13 +12,6 @@ RUN apk add --no-cache \
     pkgconfig \
     patch
 
-# Install python3 for ytdlp
-RUN apk add --no-cache python3 py3-pip
-
-# Install yt-dlp
-RUN pip3 install --break-system-packages yt-dlp
-
-
 # Set environment variables for static linking
 ENV OPENSSL_STATIC=yes
 ENV OPENSSL_DIR=/usr
@@ -35,12 +28,17 @@ RUN RUST_TARGET=$(rustc -vV | sed -n 's/host: //p') && \
     RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target $RUST_TARGET
 
 # Stage for creating the non-privileged user
-FROM alpine:3.20 AS user-stage
+FROM alpine:3.20
+
+RUN apk add coreutils
+
+# Install python3 for ytdlp
+RUN apk add --no-cache python3 py3-pip
+
+# Install yt-dlp
+RUN pip3 install --break-system-packages yt-dlp
 
 RUN adduser -u 10001 -S appuser
-
-# Stage for a smaller final image
-FROM scratch
 
 # Copy necessary files from the builder stage, using the correct architecture path
 COPY --from=builder /usr/src/app/target/*/release/inv_sig_helper_rust /app/inv_sig_helper_rust
