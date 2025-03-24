@@ -2,6 +2,7 @@ mod consts;
 mod jobs;
 mod opcode;
 mod player;
+mod ytdlp; 
 
 use ::futures::StreamExt;
 use consts::{DEFAULT_SOCK_PATH, DEFAULT_SOCK_PERMS, DEFAULT_TCP_URL};
