@@ -23,4 +23,4 @@ ydl.add_info_extractor(ie)
 player_url = sys.argv[1]
 youtube_video_id = sys.argv[2]
 
-print(ie._extract_signature_timestamp(youtube_video_id, player_url))
+print(ie._extract_signature_timestamp(youtube_video_id, player_url), end='')

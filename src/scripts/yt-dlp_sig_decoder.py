@@ -24,4 +24,4 @@ player_url = sys.argv[1]
 signature = sys.argv[2]
 youtube_video_id = sys.argv[3]
 
-print(ie._decrypt_signature(signature, youtube_video_id, player_url))
+print(ie._decrypt_signature(signature, youtube_video_id, player_url), end='')
