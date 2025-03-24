@@ -5,7 +5,7 @@ mod player;
 
 use ::futures::StreamExt;
 use consts::{DEFAULT_SOCK_PATH, DEFAULT_SOCK_PERMS, DEFAULT_TCP_URL};
-use jobs::{process_decrypt_n_signature, process_fetch_update, GlobalState, JobOpcode};
+use jobs::{process_decrypt_n_signature, process_decrypt_n_signature_ytdlp, process_fetch_update, GlobalState, JobOpcode};
 use opcode::OpcodeDecoder;
 use player::fetch_update;
 use std::{env::args, sync::Arc, fs::set_permissions, fs::Permissions, os::unix::fs::PermissionsExt};
@@ -20,9 +20,11 @@ use tokio_util::codec::Framed;
 use log::{info, error, debug};
 
 use crate::jobs::{
-    process_decrypt_signature, process_get_signature_timestamp, process_player_status,
+    process_decrypt_signature, process_decrypt_signature_ytdlp, process_get_signature_timestamp, process_player_status,
     process_player_update_timestamp,
 };
+
+use ytdlp::ytdlp_requested;
 
 macro_rules! loop_main {
     ($i:ident, $s:ident) => {
@@ -127,28 +129,52 @@ where
                     JobOpcode::DecryptNSignature => {
                         let cloned_state = state.clone();
                         let cloned_sink = arc_sink.clone();
-                        tokio::spawn(async move {
-                            process_decrypt_n_signature(
-                                cloned_state,
-                                opcode.signature,
-                                cloned_sink,
-                                opcode.request_id,
-                            )
-                            .await;
-                        });
+                        if ytdlp_requested() {
+                            tokio::spawn(async move {
+                                process_decrypt_n_signature_ytdlp(
+                                    cloned_state,
+                                    opcode.signature,
+                                    cloned_sink,
+                                    opcode.request_id,
+                                )
+                                .await;
+                            });
+                        } else {
+                            tokio::spawn(async move {
+                                process_decrypt_n_signature(
+                                    cloned_state,
+                                    opcode.signature,
+                                    cloned_sink,
+                                    opcode.request_id,
+                                )
+                                .await;
+                            });
+                        }
                     }
                     JobOpcode::DecryptSignature => {
                         let cloned_state = state.clone();
                         let cloned_sink = arc_sink.clone();
-                        tokio::spawn(async move {
-                            process_decrypt_signature(
-                                cloned_state,
-                                opcode.signature,
-                                cloned_sink,
-                                opcode.request_id,
-                            )
-                            .await;
-                        });
+                        if ytdlp_requested() {
+                            tokio::spawn(async move {
+                                process_decrypt_signature_ytdlp(
+                                    cloned_state,
+                                    opcode.signature,
+                                    cloned_sink,
+                                    opcode.request_id,
+                                )
+                                .await;
+                            });
+                        } else {
+                            tokio::spawn(async move {
+                                process_decrypt_signature(
+                                    cloned_state,
+                                    opcode.signature,
+                                    cloned_sink,
+                                    opcode.request_id,
+                                )
+                                .await;
+                            });
+                        }
                     }
                     JobOpcode::GetSignatureTimestamp => {
                         let cloned_state = state.clone();

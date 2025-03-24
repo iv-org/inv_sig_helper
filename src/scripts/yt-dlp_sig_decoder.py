@@ -9,13 +9,12 @@ import sys
 Args:
     - sys.argv[1]: player_url
     - sys.argv[2]: signature
+    - sys.argv[3]: random youtube video id
 Example:
-    python yt-dlp_sig_decoder.py "https://www.youtube.com/s/player/af7f576f/player_ias.vflset/en_US/base.js" "W78n255zM6g"
+    python yt-dlp_sig_decoder.py "https://www.youtube.com/s/player/af7f576f/player_ias.vflset/en_US/base.js" "W78n255zM6g" "W78n255zM6g"
 """
 
 params = {}
-
-YOUTUBE_VIDEO_ID = "W78n255zM6g"
 
 ie = yt_dlp.extractor.YoutubeIE()
 ydl = yt_dlp.YoutubeDL({})
@@ -23,6 +22,6 @@ ydl.add_info_extractor(ie)
 
 player_url = sys.argv[1]
 signature = sys.argv[2]
-print(type(signature))
+youtube_video_id = sys.argv[3]
 
-print(ie._decrypt_signature(signature, YOUTUBE_VIDEO_ID, player_url))
+print(ie._decrypt_signature(signature, youtube_video_id, player_url))

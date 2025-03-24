@@ -10,6 +10,8 @@ use crate::{
     jobs::GlobalState,
 };
 
+use ytdlp::{ytdlp_requested, ytdlp_signature_timestamp};
+
 // TODO: too lazy to make proper debugging print
 #[derive(Debug)]
 pub enum FetchUpdateStatus {
@@ -59,6 +61,16 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     }
     // release the mutex for other tasks
     drop(current_player_info);
+
+    // we have enough info for ytdlp to decode the signature
+    if ytdlp_requested() {
+        current_player_info = global_state.player_info.lock().await;
+        current_player_info.player_id = player_id;
+        current_player_info.signature_timestamp = ytdlp_signature_timestamp(player_id);
+        current_player_info.has_player = 0xFF;
+        current_player_info.last_update = SystemTime::now();
+        return Ok(());
+    }
     
     // Download the player script
     let player_js_url: String = format!(

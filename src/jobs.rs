@@ -6,6 +6,7 @@ use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
 
 use crate::{consts::NSIG_FUNCTION_NAME, opcode::OpcodeResponse, player::fetch_update};
+use crate::ytdlp::{ytdlp_nsig_decoder, ytdlp_sig_decoder};
 
 pub enum JobOpcode {
     ForceUpdate,
@@ -139,6 +140,63 @@ pub async fn process_fetch_update<W>(
         })
         .await;
 }
+
+// decrypt by ytdlp_nsig_decoder
+pub async fn process_decrypt_n_signature_ytdlp<W>(
+    state: Arc<GlobalState>,
+    sig: String,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
+{
+    let cloned_writer = stream.clone();
+    let global_state = state.clone();
+
+    let player_info = global_state.player_info.lock().await;
+    let player_id = player_info.player_id;
+    let decrypted_string = ytdlp_nsig_decoder(&sig, player_id);
+
+    let mut writer = cloned_writer.lock().await;
+    let _ = writer
+        .send(OpcodeResponse {
+            opcode: JobOpcode::DecryptNSignature,
+            request_id,
+            signature: decrypted_string,
+            ..Default::default()
+        })
+        .await;
+}
+
+// decrypt by ytdlp_sig_decoder
+pub async fn process_decrypt_signature_ytdlp<W>(
+    state: Arc<GlobalState>,
+    sig: String,
+    stream: Arc<Mutex<W>>,
+    request_id: u32,
+) where
+    W: SinkExt<OpcodeResponse> + Unpin + Send,
+{
+    let cloned_writer = stream.clone();
+    let global_state = state.clone();
+
+    let player_info = global_state.player_info.lock().await;
+    let player_id = player_info.player_id;
+    let decrypted_string = ytdlp_sig_decoder(&sig, player_id);
+
+    let mut writer = cloned_writer.lock().await;
+    let _ = writer
+        .send(OpcodeResponse {
+            opcode: JobOpcode::DecryptSignature,
+            request_id,
+            signature: decrypted_string,
+            ..Default::default()
+        })
+        .await;
+}
+
+
+
 
 pub async fn process_decrypt_n_signature<W>(
     state: Arc<GlobalState>,
