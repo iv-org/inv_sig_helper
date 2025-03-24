@@ -1,11 +1,8 @@
-mod consts;
-
-use ::futures::StreamExt;
-use std::env;
+use std::env::var;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::Command::new;
 
-use consts::{ENV_USE_YT_DLP, TEST_YOUTUBE_VIDEO};
+use crate::consts::{ENV_USE_YT_DLP, TEST_YOUTUBE_VIDEO};
 
 fn ytdlp_get_script_path(script_name: &str) -> PathBuf {
     let exe_path = std::env::current_exe().expect("Failed to get current path of binary");

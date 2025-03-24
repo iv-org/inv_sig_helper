@@ -8,7 +8,7 @@ use crate::{
         REGEX_PLAYER_ID, REGEX_SIGNATURE_FUNCTION, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
     },
     jobs::GlobalState,
-    ytdlp::{ytdlp_requested, ytdlp_signature_timestamp};
+    ytdlp::{ytdlp_requested, ytdlp_signature_timestamp},
 };
 
 // TODO: too lazy to make proper debugging print
