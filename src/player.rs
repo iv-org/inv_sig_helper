@@ -20,17 +20,55 @@ pub enum FetchUpdateStatus {
     PlayerAlreadyUpdated,
 }
 
-fn fixup_nsig_jscode(jscode: &str) -> String {
-    let fixup_re = Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*"undefined"\s*\)\s*return\s+\w+;"#).unwrap();
+fn extract_player_js_global_var(jscode: &str) -> Option<(String, String, String)> {
+    let re = Regex::new(r#"(?x)
+        'use\s+strict';\s*
+        (?P<code>
+            var\s+(?P<name>[a-zA-Z0-9_$]+)\s*=\s*
+            (?P<value>"(?:[^"\\]|\\.)+"\.split\("[^"]+"\))
+        )[;,]"#).ok()?;
+    
+    if let Some(caps) = re.captures(jscode) {
+        Some((
+            caps.name("code")?.as_str().to_string(),
+            caps.name("name")?.as_str().to_string(),
+            caps.name("value")?.as_str().to_string()
+        ))
+    } else {
+        None
+    }
+}
+
+fn fixup_nsig_jscode(jscode: &str, player_javascript: &str) -> String {
+    // First try to extract any global variable
+    let mut result = jscode.to_string();
+    
+    let fixup_re = if let Some((global_var, varname, _)) = extract_player_js_global_var(player_javascript) {
+        debug!("global_var: {}", global_var);
+        debug!("varname: {}", varname);
+        debug!("jscode: {}", jscode);
+
+        info!("Prepending n function code with global array variable '{}'", varname);
+        result = format!("function decrypt_nsig(p){{{}; {}", global_var, jscode.replace("function decrypt_nsig(p){", ""));
+
+        Regex::new(&format!(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*(?:"undefined"|'undefined'|{}\[\d+\])\s*\)\s*return\s+\w+;"#, varname)).unwrap()
+    } else {
+        info!("No global array variable found in player JS");
+        Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*"undefined"\s*\)\s*return\s+\w+;"#).unwrap()
+    };
+
+    // Now handle the conditional return statement cleanup
+    // info!("jscode: {}", result);
 
     // Replace the matched pattern with just ";"
-    if fixup_re.is_match(jscode) {
-        info!("Fixing up nsig_func_body.");
-        return fixup_re.replace_all(jscode, ";").to_string();
+    if fixup_re.is_match(&result) {
+        info!("Fixing up nsig_func_body");
+        result = fixup_re.replace_all(&result, ";").to_string();
+        // info!("result: {}", result);
     } else {
         info!("nsig_func returned with no fixup");
-        return jscode.to_string();
     }
+    result
 }
 
 pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStatus> {
@@ -132,6 +170,8 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     nsig_function_code += "function ";
     nsig_function_code += NSIG_FUNCTION_NAME;
 
+    debug!("nsig function name: {}", nsig_function_name);
+
     // Extract nsig function code
     for (index, ending) in NSIG_FUNCTION_ENDINGS.iter().enumerate() {
         let mut nsig_function_code_regex_str: String = String::new();
@@ -151,11 +191,12 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
                 continue;
             }
             Some(i) => {
+                debug!("nsig function ending worked: {}", ending);
                 i.get(1).unwrap().as_str()
             }
         };
-        nsig_function_code = fixup_nsig_jscode(&nsig_function_code);
-        debug!("got nsig fn code: {}", nsig_function_code);
+        nsig_function_code = fixup_nsig_jscode(&nsig_function_code, &player_javascript);
+        info!("got nsig fn code: {}", nsig_function_code);
         break;
     }
 
@@ -205,6 +246,15 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     sig_code += "var ";
     sig_code += sig_function_name;
     sig_code += ";";
+
+    if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
+        sig_code += &global_var;
+        sig_code += ";";
+        debug!("fix sig code global var: {}", global_var);
+        debug!("fix sig code varname: {}", varname);
+    } else {
+        debug!("No global array variable found in player JS");
+    }
 
     sig_code += helper_object_body;
     sig_code += sig_function_body;
