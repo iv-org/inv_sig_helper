@@ -25,7 +25,10 @@ fn extract_player_js_global_var(jscode: &str) -> Option<(String, String, String)
         'use\s+strict';\s*
         (?P<code>
             var\s+(?P<name>[a-zA-Z0-9_$]+)\s*=\s*
-            (?P<value>"(?:[^"\\]|\\.)+"\.split\("[^"]+"\))
+            (?P<value>
+                (?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')
+                \.split\((?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')\)
+            )
         )[;,]"#).ok()?;
     
     if let Some(caps) = re.captures(jscode) {
@@ -43,13 +46,20 @@ fn fixup_nsig_jscode(jscode: &str, player_javascript: &str) -> String {
     // First try to extract any global variable
     let mut result = jscode.to_string();
     
+    // Extract the original parameter name from the input JavaScript code
+    let param_regex = Regex::new(r"function\s+[a-zA-Z0-9_$]+\s*\(([a-zA-Z0-9_$]+)\)").unwrap();
+    let param_name = param_regex.captures(jscode)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("a"); // fallback to 'a' if we can't find the original parameter
+    
     let fixup_re = if let Some((global_var, varname, _)) = extract_player_js_global_var(player_javascript) {
         debug!("global_var: {}", global_var);
         debug!("varname: {}", varname);
         debug!("jscode: {}", jscode);
 
         info!("Prepending n function code with global array variable '{}'", varname);
-        result = format!("function decrypt_nsig(p){{{}; {}", global_var, jscode.replace("function decrypt_nsig(p){", ""));
+        result = format!("function decrypt_nsig({}){{{}; {}", param_name, global_var, jscode.replace(&format!("function decrypt_nsig({}){{", param_name), ""));
 
         Regex::new(&format!(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*(?:"undefined"|'undefined'|{}\[\d+\])\s*\)\s*return\s+\w+;"#, varname)).unwrap()
     } else {
@@ -196,7 +206,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
             }
         };
         nsig_function_code = fixup_nsig_jscode(&nsig_function_code, &player_javascript);
-        info!("got nsig fn code: {}", nsig_function_code);
+        debug!("got nsig fn code: {}", nsig_function_code);
         break;
     }
 
