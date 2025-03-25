@@ -10,6 +10,9 @@ Type=simple
 User=invidious
 Group=invidious
 
+# use yt-dlp for decoding signatures instead of bulit-in code
+# Environment="USE_YT_DLP=1"
+
 # allow only the strict necessary since this service runs untrusted code directly from Google
 CapabilityBoundingSet=~CAP_SETUID CAP_SETGID CAP_SETPCAP
 CapabilityBoundingSet=~CAP_SYS_ADMIN

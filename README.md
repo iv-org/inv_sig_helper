@@ -93,6 +93,29 @@ The service can run in Unix socket mode (default) or TCP mode:
 
    If no IP:PORT is given, it defaults to `127.0.0.1:12999`.
 
+#### yt-dlp decoding
+
+`inv_sig_helper` supports signature decoding using `yt-dlp`. This feature can be useful if you want to use `yt-dlp` for decoding signatures instead of the built-in code.
+
+To enable decoding using `yt-dlp`, set the environment variable `USE_YT_DLP` to `1`:
+
+```
+export USE_YT_DLP=1
+```
+
+or uncomment the following line in your `docker-compose.yaml`:
+
+```yaml
+environment:
+  - USE_YT_DLP=1  # use yt-dlp for decoding signatures instead of built-in code
+```
+
+inv_sig_helper.service:
+
+```
+Environment="USE_YT_DLP=1"
+```
+
 #### Troubleshooting
 
 The log level can be configured using the `RUST_LOG` environment variable. Valid values are:
@@ -104,6 +127,8 @@ The log level can be configured using the `RUST_LOG` environment variable. Valid
 - trace
 
 The `info` log level is the default setting. Changing this to `debug` will provide detailed logs on each request for additional troubleshooting.
+
+In case of issues with decoding / `sig` function / `nsig` function, refer to the `yt-dlp decoding` section.
 
 
 ## Protocol Format
