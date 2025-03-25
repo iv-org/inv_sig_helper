@@ -12,10 +12,11 @@ services:
     environment:
       - RUST_LOG=info
       # - USE_YT_DLP=1
+      # use yt-dlp for decoding signatures instead of bulit-in code
     restart: unless-stopped
     cap_drop:
       - ALL
-    read_only: true
+    read_only: false # yt-dlp cache
     user: 10001:10001
     security_opt:
       - no-new-privileges:true

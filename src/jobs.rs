@@ -4,6 +4,7 @@ use std::{num::NonZeroUsize, sync::Arc, thread::available_parallelism, time::Sys
 use log::{debug, error};
 use tokio::{runtime::Handle, sync::Mutex, task::block_in_place};
 use tub::Pool;
+use tokio::task;
 
 use crate::{consts::NSIG_FUNCTION_NAME, opcode::OpcodeResponse, player::fetch_update};
 use crate::ytdlp::{ytdlp_nsig_decoder, ytdlp_sig_decoder};
@@ -155,7 +156,8 @@ pub async fn process_decrypt_n_signature_ytdlp<W>(
 
     let player_info = global_state.player_info.lock().await;
     let player_id = player_info.player_id;
-    let decrypted_string = ytdlp_nsig_decoder(&sig, player_id);
+    // async - let decrypted_string = ytdlp_nsig_decoder(&sig, player_id);
+    let decrypted_string = tokio::task::spawn_blocking(move || ytdlp_nsig_decoder(sig, player_id)).await.unwrap();
 
     let mut writer = cloned_writer.lock().await;
     let _ = writer
@@ -182,7 +184,7 @@ pub async fn process_decrypt_signature_ytdlp<W>(
 
     let player_info = global_state.player_info.lock().await;
     let player_id = player_info.player_id;
-    let decrypted_string = ytdlp_sig_decoder(&sig, player_id);
+    let decrypted_string = tokio::task::spawn_blocking(move || ytdlp_sig_decoder(sig, player_id)).await.unwrap();
 
     let mut writer = cloned_writer.lock().await;
     let _ = writer

@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cached = "0.27"
 regex = "1.10.4"
 tokio = { version = "1.37.0", features = ["full", "net", "macros", "rt-multi-thread", "io-std", "io-util", "mio"] }
 reqwest = "0.12.4"

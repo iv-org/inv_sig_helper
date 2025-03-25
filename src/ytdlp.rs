@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::process::Command;
+use cached::proc_macro::cached;
 
-use crate::consts::{ENV_USE_YT_DLP, TEST_YOUTUBE_VIDEO};
+use crate::consts::{ENV_USE_YT_DLP, TEST_YOUTUBE_VIDEO_ID};
 
 fn ytdlp_get_script_path(script_name: &str) -> PathBuf {
     let exe_path = std::env::current_exe().expect("Failed to get current path of binary");
@@ -16,6 +17,7 @@ pub fn ytdlp_requested() -> bool {
     }
 }
 
+#[cached(size = 100)]
 pub fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
@@ -23,7 +25,7 @@ pub fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
     );
     let child = std::process::Command::new(ytdlp_get_script_path("yt-dlp_signature_timestamp.py"))
         .arg(player_js_url)
-        .arg(TEST_YOUTUBE_VIDEO)
+        .arg(TEST_YOUTUBE_VIDEO_ID)
         .output()
         .expect("Failed to execute command");
 
@@ -31,7 +33,8 @@ pub fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
     output.to_string().parse::<u64>().unwrap()
 }
 
-pub fn ytdlp_nsig_decoder(signature: &str, player_id: u32) -> String {
+#[cached(size = 10000)]
+pub fn ytdlp_nsig_decoder(signature: String, player_id: u32) -> String {
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
@@ -39,7 +42,7 @@ pub fn ytdlp_nsig_decoder(signature: &str, player_id: u32) -> String {
     let child = std::process::Command::new(ytdlp_get_script_path("yt-dlp_nsig_decoder.py"))
         .arg(player_js_url)
         .arg(signature)
-        .arg(TEST_YOUTUBE_VIDEO)
+        .arg(TEST_YOUTUBE_VIDEO_ID)
         .output()
         .expect("Failed to execute command");
 
@@ -47,7 +50,8 @@ pub fn ytdlp_nsig_decoder(signature: &str, player_id: u32) -> String {
     output.to_string()
 }
 
-pub fn ytdlp_sig_decoder(signature: &str, player_id: u32) -> String {
+#[cached(size = 10000)]
+pub fn ytdlp_sig_decoder(signature: String, player_id: u32) -> String {
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
         player_id
@@ -55,7 +59,7 @@ pub fn ytdlp_sig_decoder(signature: &str, player_id: u32) -> String {
     let child = std::process::Command::new(ytdlp_get_script_path("yt-dlp_sig_decoder.py"))
         .arg(player_js_url)
         .arg(signature)
-        .arg(TEST_YOUTUBE_VIDEO)
+        .arg(TEST_YOUTUBE_VIDEO_ID)
         .output()
         .expect("Failed to execute command");
 
