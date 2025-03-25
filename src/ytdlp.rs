@@ -17,7 +17,7 @@ pub fn ytdlp_requested() -> bool {
     }
 }
 
-#[cached(size = 100)]
+#[cached(size = 10, time = 30)]
 pub fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
@@ -33,7 +33,7 @@ pub fn ytdlp_signature_timestamp(player_id: u32) -> u64 {
     output.to_string().parse::<u64>().unwrap()
 }
 
-#[cached(size = 10000)]
+#[cached(size = 1000, time = 30)]
 pub fn ytdlp_nsig_decoder(signature: String, player_id: u32) -> String {
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
@@ -50,7 +50,7 @@ pub fn ytdlp_nsig_decoder(signature: String, player_id: u32) -> String {
     output.to_string()
 }
 
-#[cached(size = 10000)]
+#[cached(size = 1000, time = 30)]
 pub fn ytdlp_sig_decoder(signature: String, player_id: u32) -> String {
     let player_js_url: String = format!(
         "https://www.youtube.com/s/player/{:08x}/player_ias.vflset/en_US/base.js",
