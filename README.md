@@ -116,6 +116,12 @@ inv_sig_helper.service:
 Environment="USE_YT_DLP=1"
 ```
 
+To upgrade `yt-dlp` in the container, you need to rebuild the Docker container:
+
+```
+docker compose up --build --force-recreate --no-deps
+```
+
 #### Troubleshooting
 
 The log level can be configured using the `RUST_LOG` environment variable. Valid values are:
