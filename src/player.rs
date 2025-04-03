@@ -29,6 +29,7 @@ fn extract_player_js_global_var(jscode: &str) -> Option<(String, String, String)
                 (?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')
                 \.split\((?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')\)
                 |\[(?:(?:"[^"\\]*(?:\\.[^"\\]*)*"|'[^'\\]*(?:\\.[^'\\]*)*')\s*,?\s*)*\]
+                |"[^"]*"\.split\("[^"]*"\)
             )
         )[;,]"#).ok()?;
     
@@ -62,6 +63,8 @@ fn fixup_nsig_jscode(jscode: &str, player_javascript: &str) -> String {
         info!("Prepending n function code with global array variable '{}'", varname);
         result = format!("function decrypt_nsig({}){{{}; {}", param_name, global_var, jscode.replace(&format!("function decrypt_nsig({}){{", param_name), ""));
 
+        // Escape special regex characters in the variable name
+        let escaped_varname = varname.replace("$", "\\$");
         Regex::new(&format!(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*(?:"undefined"|'undefined'|{}\[\d+\])\s*\)\s*return\s+\w+;"#, varname)).unwrap()
     } else {
         info!("No global array variable found in player JS");
