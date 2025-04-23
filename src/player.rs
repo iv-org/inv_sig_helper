@@ -275,9 +275,8 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         sig_code += helper_object_body;
         sig_code += sig_function_body;
     } else {
-        // just return empty sig function code
-        // random sig_function_name
-        let sig_function_name = format!("sig_function_{}", SystemTime::now().elapsed().unwrap().as_millis());
+        // just return empty sig function code with random name
+        let sig_function_name = format!("sig_function_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
         sig_code += "var ";
         sig_code += &sig_function_name;
         sig_code += ";";
