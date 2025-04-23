@@ -214,19 +214,24 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         break;
     }
 
-    if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
-        debug!("found global var for sig: {}", global_var);
-        debug!("found varname for sig: {}", varname);
+    let (global_var, varname, _) = extract_player_js_global_var(&player_javascript).unwrap();
+    if !global_var.is_empty() {
+        debug!("Found global var for sig: {}", global_var);
+        debug!("Found varname for sig: {}", varname);
     } else {
-        debug!("No global array variable found in player JS");
+        debug!("No global var found for sig");
     }
 
     // Extract signature function name
     let mut sig_function_name = String::new();
     let mut found_sig_function = false;
-
+    
     for sig_pattern in REGEX_SIGNATURE_FUNCTION_PATTERNS.iter() {
-        let sig_regex = match Regex::new(sig_pattern) {
+        let _sig_pattern = sig_pattern.replace("GLOBAL_VAR_NAME", &regex::escape(&varname));
+
+        debug!("sig pattern: {}", _sig_pattern);
+
+        let sig_regex = match Regex::new(&_sig_pattern) {
             Ok(r) => r,
             Err(e) => {
                 warn!("Failed to compile signature regex pattern: {}", e);
@@ -292,7 +297,7 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         sig_code += &sig_function_name;
         sig_code += ";";
 
-        if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
+        if !global_var.is_empty() {
             sig_code += &global_var;
             sig_code += ";";
         }
