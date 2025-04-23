@@ -65,7 +65,7 @@ fn fixup_nsig_jscode(jscode: &str, player_javascript: &str) -> String {
 
         // Escape special regex characters in the variable name
         let escaped_varname = varname.replace("$", "\\$");
-        Regex::new(&format!(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*(?:"undefined"|'undefined'|{}\[\d+\])\s*\)\s*return\s+\w+;"#, varname)).unwrap()
+        Regex::new(&format!(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*(?:"undefined"|'undefined'|{}\[\d+\])\s*\)\s*return\s+\w+;"#, escaped_varname)).unwrap()
     } else {
         info!("No global array variable found in player JS");
         Regex::new(r#";\s*if\s*\(\s*typeof\s+[a-zA-Z0-9_$]+\s*===?\s*"undefined"\s*\)\s*return\s+\w+;"#).unwrap()
@@ -217,63 +217,74 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     // Extract signature function name
     let sig_function_name = REGEX_SIGNATURE_FUNCTION
         .captures(&player_javascript)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
-
-    let mut sig_function_body_regex_str: String = String::new();
-    sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
-    sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
-
-    let sig_function_body_regex = Regex::new(&sig_function_body_regex_str).unwrap();
-
-    let sig_function_body = sig_function_body_regex
-        .captures(&player_javascript)
-        .unwrap()
-        .get(0)
-        .unwrap()
-        .as_str();
-
-    // Get the helper object
-    let helper_object_name = REGEX_HELPER_OBJ_NAME
-        .captures(sig_function_body)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
-
-    let mut helper_object_body_regex_str = String::new();
-    helper_object_body_regex_str += "(var ";
-    helper_object_body_regex_str += &helper_object_name.replace("$", "\\$");
-    helper_object_body_regex_str += "=\\{(?:.|\\n)+?\\}\\};)";
-
-    let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
-    let helper_object_body = helper_object_body_regex
-        .captures(&player_javascript)
-        .unwrap()
-        .get(0)
-        .unwrap()
-        .as_str();
+        .and_then(|cap| cap.get(1))
+        .map(|m| m.as_str())
+        .unwrap_or("");
 
     let mut sig_code = String::new();
-    sig_code += "var ";
-    sig_code += sig_function_name;
-    sig_code += ";";
 
-    if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
-        sig_code += &global_var;
+    // if sig_function_name is not empty, then we need to extract the function body
+    if !sig_function_name.is_empty() {
+        let mut sig_function_body_regex_str: String = String::new();
+        sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
+        sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
+
+        let sig_function_body_regex = Regex::new(&sig_function_body_regex_str).unwrap();
+
+        let sig_function_body = sig_function_body_regex
+            .captures(&player_javascript)
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .as_str();
+
+        // Get the helper object
+        let helper_object_name = REGEX_HELPER_OBJ_NAME
+            .captures(sig_function_body)
+            .unwrap()
+            .get(1)
+            .unwrap()
+            .as_str();
+
+        let mut helper_object_body_regex_str = String::new();
+        helper_object_body_regex_str += "(var ";
+        helper_object_body_regex_str += &helper_object_name.replace("$", "\\$");
+        helper_object_body_regex_str += "=\\{(?:.|\\n)+?\\}\\};)";
+
+        let helper_object_body_regex = Regex::new(&helper_object_body_regex_str).unwrap();
+        let helper_object_body = helper_object_body_regex
+            .captures(&player_javascript)
+            .unwrap()
+            .get(0)
+            .unwrap()
+            .as_str();
+
+        sig_code += "var ";
+        sig_code += sig_function_name;
         sig_code += ";";
-        debug!("fix sig code global var: {}", global_var);
-        debug!("fix sig code varname: {}", varname);
+
+        if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
+            sig_code += &global_var;
+            sig_code += ";";
+            debug!("fix sig code global var: {}", global_var);
+            debug!("fix sig code varname: {}", varname);
+        } else {
+            debug!("No global array variable found in player JS");
+        }
+
+        sig_code += helper_object_body;
+        sig_code += sig_function_body;
     } else {
-        debug!("No global array variable found in player JS");
+        // just return empty sig function code
+        // random sig_function_name
+        let sig_function_name = format!("sig_function_{}", SystemTime::now().elapsed().unwrap().as_millis());
+        sig_code += "var ";
+        sig_code += &sig_function_name;
+        sig_code += ";";
+        info!("No signature function found in player JS, just returning empty sig function code with random name: {}", sig_function_name);
     }
 
-    sig_code += helper_object_body;
-    sig_code += sig_function_body;
-
-    info!("sig code: {}", sig_code);
+    debug!("sig code: {}", sig_code);
 
     // Get signature timestamp
     let signature_timestamp: u64 = REGEX_SIGNATURE_TIMESTAMP
