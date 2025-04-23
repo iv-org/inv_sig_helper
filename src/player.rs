@@ -5,7 +5,7 @@ use regex::Regex;
 use crate::{
     consts::{
         NSIG_FUNCTION_ARRAYS, NSIG_FUNCTION_ENDINGS, NSIG_FUNCTION_NAME, REGEX_HELPER_OBJ_NAME,
-        REGEX_PLAYER_ID, REGEX_SIGNATURE_FUNCTION, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
+        REGEX_PLAYER_ID, REGEX_SIGNATURE_FUNCTION_PATTERNS, REGEX_SIGNATURE_TIMESTAMP, TEST_YOUTUBE_VIDEO,
     },
     jobs::GlobalState,
 };
@@ -214,17 +214,46 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
         break;
     }
 
+    if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
+        debug!("found global var for sig: {}", global_var);
+        debug!("found varname for sig: {}", varname);
+    } else {
+        debug!("No global array variable found in player JS");
+    }
+
     // Extract signature function name
-    let sig_function_name = REGEX_SIGNATURE_FUNCTION
-        .captures(&player_javascript)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str())
-        .unwrap_or("");
+    let mut sig_function_name = String::new();
+    let mut found_sig_function = false;
+
+    for sig_pattern in REGEX_SIGNATURE_FUNCTION_PATTERNS.iter() {
+        let sig_regex = match Regex::new(sig_pattern) {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("Failed to compile signature regex pattern: {}", e);
+                continue;
+            }
+        };
+
+        if let Some(cap) = sig_regex.captures(&player_javascript) {
+            if let Some(m) = cap.get(1) {
+                sig_function_name = m.as_str().to_string();
+                found_sig_function = true;
+                break;
+            }
+        }
+    }
+
+    if !found_sig_function {
+        sig_function_name = format!("sig_function_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
+        info!("No signature function found in player JS, using random name: {}", sig_function_name);
+    }
 
     let mut sig_code = String::new();
 
     // if sig_function_name is not empty, then we need to extract the function body
-    if !sig_function_name.is_empty() {
+    if found_sig_function {
+        debug!("found sig function: {}", sig_function_name);
+        
         let mut sig_function_body_regex_str: String = String::new();
         sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
         sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
@@ -260,23 +289,18 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
             .as_str();
 
         sig_code += "var ";
-        sig_code += sig_function_name;
+        sig_code += &sig_function_name;
         sig_code += ";";
 
         if let Some((global_var, varname, _)) = extract_player_js_global_var(&player_javascript) {
             sig_code += &global_var;
             sig_code += ";";
-            debug!("fix sig code global var: {}", global_var);
-            debug!("fix sig code varname: {}", varname);
-        } else {
-            debug!("No global array variable found in player JS");
         }
 
         sig_code += helper_object_body;
         sig_code += sig_function_body;
     } else {
         // just return empty sig function code with random name
-        let sig_function_name = format!("sig_function_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis());
         sig_code += "var ";
         sig_code += &sig_function_name;
         sig_code += ";";

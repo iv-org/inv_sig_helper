@@ -22,9 +22,13 @@ pub static NSIG_FUNCTION_ENDINGS: &[&str] = &[
 
 pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[=:](\\d+)");
 
-pub static REGEX_SIGNATURE_FUNCTION: &Lazy<Regex> =
-    regex!(r#"\s*?([a-zA-Z0-9_\$]{1,})=function\([a-zA-Z]{1}\)\{(.{1}=.{1}\.split\([a-zA-Z0-9\-_\$\[\]"]+\)[^\}{]+)return .{1}\.join\([a-zA-Z0-9\-_\$\[\]"]+\)\}"#);
-pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(";([A-Za-z0-9_\\$]{2,})\\...\\(");
+pub static REGEX_SIGNATURE_FUNCTION_PATTERNS: &[&str] = &[
+    r#"\s*?([a-zA-Z0-9_\$]{1,})=function\([a-zA-Z]{1}\)\{(.{1}=.{1}\.split\([a-zA-Z0-9\-_\$\[\]"]+\)[^\}{]+)return .{1}\.join\([a-zA-Z0-9\-_\$\[\]"]+\)\}"#,
+    r#"([a-zA-Z0-9_$]{1,})=function\(r\)\{r=r\[[A-Z]\[\d+\]\]\([A-Z]\[\d+\]\);[a-zA-Z0-9$]+\[[A-Z]\[\d+\]\]\(r,\d+\);[a-zA-Z0-9$]+\[[A-Z]\[\d+\]\]\(r,\d+\);[a-zA-Z0-9$]+\[[A-Z]\[\d+\]\]\(r,\d+\);return r\[[A-Z]\[\d+\]\]\([A-Z]\[\d+\]\)\}"#,
+];
+
+// pub static REGEX_SIGNATURE_FUNCTION: &Lazy<Regex> = regex!(r#"\s*?([a-zA-Z0-9_\$]{1,})=function\([a-zA-Z]{1}\)\{(.{1}=.{1}\.split\([a-zA-Z0-9\-_\$\[\]"]+\)[^\}{]+)return .{1}\.join\([a-zA-Z0-9\-_\$\[\]"]+\)\}"#);
+pub static REGEX_HELPER_OBJ_NAME: &Lazy<Regex> = regex!(";([A-Za-z0-9_\\$]{2,})(?:\\.|\\[)");
 
 pub static NSIG_FUNCTION_NAME: &str = "decrypt_nsig";
 pub static SIG_FUNCTION_NAME: &str = "decrypt_sig";
