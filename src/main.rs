@@ -15,6 +15,8 @@ use tokio::{
     io::{AsyncReadExt, AsyncWrite},
     net::{TcpListener, UnixListener},
     sync::Mutex,
+    signal,
+    select,
 };
 use tokio_util::codec::Framed;
 use log::{info, error, debug};
@@ -33,13 +35,21 @@ macro_rules! loop_main {
                 error!("Error occured while trying to fetch the player: {:?}", x);
             }
         }
-        loop {
-            let (socket, _addr) = $i.accept().await.unwrap();
+        let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate()).unwrap();
+        let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt()).unwrap();
 
-            let cloned_state = $s.clone();
-            tokio::spawn(async move {
-                process_socket(cloned_state, socket).await;
-            });
+        loop {
+            select! {
+                result = $i.accept() => {
+                    let (socket, _addr) = result.unwrap();
+                    let cloned_state = $s.clone();
+                    tokio::spawn(async move {
+                        process_socket(cloned_state, socket).await;
+                    });
+                }
+                _ = sigterm.recv() => break,
+                _ = sigint.recv() => break,
+            }
         }
     };
 }
