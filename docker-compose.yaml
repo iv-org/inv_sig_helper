@@ -5,7 +5,6 @@ services:
       context: .
       dockerfile: Dockerfile
     # image: quay.io/invidious/inv-sig-helper:latest
-    init: true
     command: ["--tcp", "127.0.0.1:12999"]
     ports:
       - 127.0.0.1:12999:12999
