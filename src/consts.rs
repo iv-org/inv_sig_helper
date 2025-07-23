@@ -24,7 +24,7 @@ pub static REGEX_SIGNATURE_TIMESTAMP: &Lazy<Regex> = regex!("signatureTimestamp[
 
 pub static REGEX_SIGNATURE_FUNCTION_PATTERNS: &[&str] = &[
     r#"\s*?([a-zA-Z0-9_\$]{1,})=function\([a-zA-Z]{1}\)\{(.{1}=.{1}\.split\([a-zA-Z0-9\-_\$\[\]"]+\)[^\}{]+)return .{1}\.join\([a-zA-Z0-9\-_\$\[\]"]+\)\}"#, // old regex
-    r#"([a-zA-Z0-9_$]{1,})=function\(([a-zA-Z0-9_$]{1})\)\{[^}]*GLOBAL_VAR_NAME\[[^\]]+\][^}]*return [^}]*GLOBAL_VAR_NAME\[[^\]]+\][^}]*\}"#, // new regex
+    r#"([a-zA-Z0-9_$]{1,})=function\(([a-zA-Z0-9_$]{1})\)\{[^&}]*GLOBAL_VAR_NAME\[[^\]]+\][^}]*return [^}]*GLOBAL_VAR_NAME\[[^\]]+\][^}]*\}"#, // new regex
     r#"([a-zA-Z0-9_$]{1,})=function\(([a-zA-Z0-9_$]{1})\)\{[^}]*return [^}]*GLOBAL_VAR_NAME\[[^\]]+\][^}]*\}"#, // more general regex
 ];
 
